@@ -218,12 +218,13 @@ begin
 end;
 $$;
 
-create or replace sp_eliminar_post(in p_post_id uuid,in p_user_post)
+create or replace procedure sp_eliminar_post(in p_post_id uuid,in p_user_post uuid)
 language plpgsql
 as $$
-begin
 declare
 	v_autor uuid;
+begin
+
 
 	select user_id
 	into v_autor
@@ -284,7 +285,7 @@ begin
 
 	from posts po
 	inner join profiles pr on pr.user_id=po.user_id
-	order by po.credo_en desc
+	order by po.creado_en desc
 	limit p_limit offset p_offset;
 
 end;
@@ -316,8 +317,8 @@ begin
         po.subtitulo,
         po.creado_en,
 		
-		(select count(*)from likes l where l.post_id=po.id),
-		(select count(*)from comments c where c.post_id=po.id),	
+		(select count(*)from likes l where l.post_id=po.id)as likes_count,
+		(select count(*)from comments c where c.post_id=po.id)as comments_count,	
 
 		  (select media_url 
           from post_media m 
@@ -326,7 +327,7 @@ begin
           limit 1)
 	
 	from posts po
-	inner join prfiles pr on pr.user_id=po.user_id
+	inner join profiles pr on pr.user_id=po.user_id
 	where po.user_id=p_user_id
 	order by po.creado_en desc
 	limit p_limit offset p_offset;
@@ -366,7 +367,28 @@ $$;
 
 -----------------------------------------------------INICIO DEL CRUD DE COMENTARIOS-----------------------------------------------------
 
-create or replace procedure sp_crear_comentario()
+create or replace procedure sp_crear_comentario(in p_user_id uuid,in p_post_id uuid, in p_contenido text)
+language plpgsql
+as $$
+begin
+
+	if p_contenido is null or trim(p_contenido)=' 'then
+		raise exception'El comentario no puede estar vacio';
+	end if;
+
+	if not exists(select 1 from users where id=p_user_id and is_active=true)then
+        raise exception'El usuario no existe o está inactivo';
+    end if;
+
+    
+    if not exists(select 1 from posts where id=p_post_id)then
+        raise exception'El post no existe';
+    end if;
+
+	insert into comments(user_id,post_id,contenido)values(p_user_id,p_post_id,p_contenido);
+
+end;
+$$;
 
 create or replace procedure sp_borrar_comentario(in p_comment_id uuid,in p_user_id uuid)
 language plpgsql
@@ -400,7 +422,200 @@ begin
 end;
 $$;
 
+-----------------------------------------------------INICIO DE FOLLOWS-----------------------------------------------------
+create or replace procedure sp_seguir_usuario(in p_follower_id uuid,in p_following_id uuid)
+language plpgsql
+as $$
+begin
 
+	if not exists(select 1 from users where id=p_follower_id and is_active=true)then
+		raise exception'El usuario seguidor no existe o esta inactivo';
+	end if;
+
+	if not exists(select 1 from users where id=p_following_id and is_active=true)then
+		raise exception'El usuario seguidor no existe o esta inactivo';
+	end if;
+
+	if p_follower_id=p_following_id then
+		raise exception'No puede seguirte a ti mismo';
+	end if;
+
+	--evitar duplicado
+	if exists(select 1 from follows where follower_id=p_follower_id and following_id=p_following_id)then
+		raise exception'Ya sigue a este usuario';
+	end if;
+
+	insert into follows(follower_id,following_id)values(p_follower_id,p_following_id);
+
+end;
+$$;
+
+create or replace procedure sp_dejar_de_seguir(in p_follower uuid,in p_following uuid)
+language plpgsql
+as $$
+begin
+
+	delete from follows where follower_id=p_follower_id
+	and following_id=p_following_id;
+
+end;
+$$;
+
+create or replace function fn_notificar_follow()
+returns trigger
+language plpgsql
+as $$
+begin
+
+	if new.follower_id<>new.following_id then
+		insert into notifications(user_id,type,reference_id)values(new.following_id,'follow',new.follower_id);
+	end if;
+
+	return new;
+
+end;
+$$;
+
+create or replace function fn_listar_seguidos(p_user_id uuid,p_limit int,p_offset int)
+returns table
+(
+
+	user_id uuid,
+	username varchar,
+	full_name timestamp,
+	foto_de_perfil_url text,
+	seguido_desde timestamp
+
+)
+language plpgsql
+as $$
+begin
+
+	return query
+	SELECT 
+        u.id,
+        p.username,
+        p.full_name,
+        p.foto_perfil_url,
+        f.creado_en
+	from follows f
+	inner join users u on u.id=f.following_id
+	inner join profiles p on p.user_id=u.id
+	where f.follower_id=p_user_id
+	order by f.creado_en desc
+	limit p_limit offset p_offset;
+
+end;
+$$;
+
+create or replace function fn_listar_seguidores(p_user_id uuid,p_limit int,p_offset int)
+returns table 
+(
+
+	user_id uuid,
+	username varchar,
+	full_name timestamp,
+	foto_de_perfil_url text,
+	seguido_desde timestamp
+	
+)
+language plpgsql
+as $$
+begin
+
+	return query
+	SELECT 
+        u.id,
+        p.username,
+        p.full_name,
+        p.foto_perfil_url,
+        f.creado_en
+	from follows f
+	inner join users u on u.id=f.follower_id
+	inner join profiles p on p.user_id=u.id
+	where f.following_id=p_user_id
+	order by f.creado_en desc
+	limit p_limit offset p_offset;
+
+end;
+$$;
+
+-----------------------------------------------------TERMINADO FOLLOWS-----------------------------------------------------
+
+-----------------------------------------------------INICIO CRUD DE STORIES-----------------------------------------------------
+create or replace procedure sp_crear_story(in p_user_id uuid,in p_media_url text,in p_media_type varchar(20))
+language plpgsql
+as $$
+begin
+
+	if not exists(select 1 from users where id=p_user_id)then
+		raise exception'El usuario no existe o esta inactivo';
+	end if;
+
+	--insertar historia con expiracion de 24 horas
+	insert into stories(user_id,media_url,media_type,expirado_en)values(p_user_id,p_media_url,p_media_type,current_timestamp+interval'24 HOURS');
+
+end;
+$$;
+
+create or replace procedure sp_eliminar_story(in p_story uuid,in p_user_id uuid)
+language plpgsql
+as $$
+declare	
+	v_autor uuid;
+begin
+
+	--obtener autorrrr
+	select user_id into v_autor
+	from stories
+	where id=p_story_id;
+
+	if v_autor is null then
+		raise exception'La story no existe';
+	end if;
+
+	delete from stories
+	where id=p_story_id;
+	
+
+end;
+$$;
+
+create or replace function fn_listar_stories_usuario(p_user_id uuid)
+returns table
+(
+
+	user_id uuid,
+	username varchar,
+	foto_perfil_url text,
+	story_id uuid,
+	media_url text,
+	media_type varchar,
+	creado_en timestamp
+
+)
+language plpgsql
+as $$
+begin
+
+	return query
+	select
+		s.user_id,
+        pr.username,
+        pr.foto_perfil_url,
+        s.id,
+        s.media_url,
+        s.media_type,
+        s.creado_en
+	from stories s
+	inner join profiles pr on pr.user_id=s.user_id
+	where s.expirado_en>current_timestamp and(s.user_id=p_user_id
+	or s.user_id in(select following_id from follows
+	where follower_id=p_user_id))
+	order by s.user_id,s.creado_en desc;
+
+end;
+$$;
 
 /*
  * 
@@ -443,22 +658,8 @@ begin
 end;
 $$;
 
+-----------------------------------------------------TERMINADO CRUD DE STORIES-----------------------------------------------------
 
-	
-
-create or replace procedure sp_crear_comentario(in p_user_id uuid,in p_post_id uuid,in p_contenido text)
-language plpgsql
-as $$
-begin
-	
-	if not exists(select 1 from posts where id=p_post_id)then
-		raise exception'El post no existe';
-	end if;
-
-	insert into comments(user_id,post_id,contenido)values(p_user_id,p_post_id,p_contenido);
-
-end;
-$$;
 
 create or replace function fn_notificar_like()
 returns trigger

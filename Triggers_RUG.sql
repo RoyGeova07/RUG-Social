@@ -3,7 +3,6 @@ before update on users
 for each row 
 execute function fn_set_actualizado_en();
 
-
 create trigger trg_notificar_like
 after insert on likes
 for each row 
@@ -13,3 +12,8 @@ create trigger trg_notificar_comentario
 after insert on comments
 for each row 
 execute function fn_notificar_comentario();
+
+create trigger trg_notificar_follow
+after insert on follows
+for each row
+execute function fn_notificar_follow();
