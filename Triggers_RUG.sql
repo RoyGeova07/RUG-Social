@@ -17,3 +17,8 @@ create trigger trg_notificar_follow
 after insert on follows
 for each row
 execute function fn_notificar_follow();
+
+create trigger trg_posts_actualizado
+before update on posts
+for each row
+execute function fn_set_actualizado_en();

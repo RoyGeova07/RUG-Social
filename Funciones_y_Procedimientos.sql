@@ -218,7 +218,8 @@ begin
 end;
 $$;
 
-create or replace procedure sp_eliminar_post(in p_post_id uuid,in p_user_post uuid)
+
+create or replace procedure sp_eliminar_post(in p_post_id uuid,in p_user_id uuid)
 language plpgsql
 as $$
 declare
@@ -450,31 +451,19 @@ begin
 end;
 $$;
 
-create or replace procedure sp_dejar_de_seguir(in p_follower uuid,in p_following uuid)
+
+create or replace procedure sp_dejar_de_seguir(in p_follower_id uuid,in p_following_id uuid)
 language plpgsql
 as $$
 begin
 
-	delete from follows where follower_id=p_follower_id
+	delete from follows 
+	where follower_id=p_follower_id
 	and following_id=p_following_id;
 
 end;
 $$;
 
-create or replace function fn_notificar_follow()
-returns trigger
-language plpgsql
-as $$
-begin
-
-	if new.follower_id<>new.following_id then
-		insert into notifications(user_id,type,reference_id)values(new.following_id,'follow',new.follower_id);
-	end if;
-
-	return new;
-
-end;
-$$;
 
 create or replace function fn_listar_seguidos(p_user_id uuid,p_limit int,p_offset int)
 returns table
@@ -482,7 +471,7 @@ returns table
 
 	user_id uuid,
 	username varchar,
-	full_name timestamp,
+	full_name varchar,
 	foto_de_perfil_url text,
 	seguido_desde timestamp
 
@@ -514,7 +503,7 @@ returns table
 
 	user_id uuid,
 	username varchar,
-	full_name timestamp,
+	full_name varchar,
 	foto_de_perfil_url text,
 	seguido_desde timestamp
 	
@@ -543,7 +532,7 @@ $$;
 -----------------------------------------------------TERMINADO FOLLOWS-----------------------------------------------------
 
 -----------------------------------------------------INICIO CRUD DE STORIES-----------------------------------------------------
-create or replace procedure sp_crear_story(in p_user_id uuid,in p_media_url text,in p_media_type varchar(20))
+create or replace procedure sp_crear_story(in p_user_id uuid,in p_media_url text,in p_media_type varchar(40))
 language plpgsql
 as $$
 begin
@@ -558,7 +547,7 @@ begin
 end;
 $$;
 
-create or replace procedure sp_eliminar_story(in p_story uuid,in p_user_id uuid)
+create or replace procedure sp_eliminar_story(in p_story_id uuid,in p_user_id uuid)
 language plpgsql
 as $$
 declare	
@@ -617,50 +606,450 @@ begin
 end;
 $$;
 
-/*
- * 
- * Un usuario solo puede dar un like una vez
- * si ya existe, no duplicar 
- * al darle like, crear notificacion
- * al quitar like, borrar like
- */
-
-
-create or replace procedure sp_dar_like(in p_user_id uuid,in p_post_id uuid)
-language plpgsql
-as $$
-begin
-	
-	if not exists(select 1 from posts where id=p_post_id)then
-		raise exception'el post no existe';
-	end if;
-
-	--para evitar likes duplicados
-	if exists(select 1 from likes where user_id=p_user_id and post_id=p_post_id)then
-		raise exception'El usuario ya dio like a este post';
-	end if;
-
-	--insertar like
-	insert into likes(user_id,post_id)values(p_user_id,p_post_id);
-
-end;
-$$;
-
-create or replace procedure sp_quitar_like(in p_user_id uuid, in p_post_id uuid)
-language plpgsql
-as $$
-begin
-	
-	delete from likes
-	where user_id=p_user_id
-	and post_id=p_post_id;
-
-end;
-$$;
-
 -----------------------------------------------------TERMINADO CRUD DE STORIES-----------------------------------------------------
 
+-----------------------------------------------------INICIO DE CRUD DE CHAT-----------------------------------------------------
+create or replace procedure sp_crear_chat_privado(in p_user1_id uuid,in p_user2_id uuid,out p_chat_id uuid)
+language plpgsql
+as $$
+begin
 
+	if not exists(select 1 from users where id=p_user1_id and is_active=true)then
+		raise exception'El usuario 1 no existe o esta inactivo';
+	end if;
+
+	if not exists(select 1 from users where id=p_user2_id and is_active=true)then
+		raise exception'El usuario 2 no existe o esta inactivo';
+	end if;
+
+	if p_user1_id=p_user2_id then
+		raise exception'No podes crear char contigo mismo';
+	end if;
+
+	--se verifica si ya existe chat entre esos 2 usuarios
+	select c.id into p_chat_id
+	from chats c
+	where c.is_group=false
+	and exists(select 1 from chat_members cm1 where cm1.chat_id=c.id and cm1.user_id=p_user1_id)
+	and exists(select 1 from chat_members cm2 where cm2.chat_id=c.id and cm2.user_id=p_user2_id)
+	and(select count(*)from chat_members where chat_id=c.id)=2;
+
+	--si ya existe, retornar el id del chat existente
+	if p_chat_id is not null then
+		return;
+	end if;
+
+	--si no existe, crear nuevo chat
+	insert into chats(is_group)values(false)
+	returning id into p_chat_id;
+
+	--insertar ambos usuarios como miembros
+	insert into chat_members(chat_id,user_id)values(p_chat_id,p_user1_id);
+    insert into chat_members(chat_id,user_id)values(p_chat_id,p_user2_id);
+
+	
+end;
+$$;
+
+
+create or replace procedure sp_crear_chat_grupal(in p_creator_id uuid,in p_member_ids uuid[],out p_chat_id uuid)
+language plpgsql
+as $$
+declare 
+	v_member_id uuid;
+begin
+
+	 if not exists(select 1 from users where id=p_creator_id and is_active=true) then
+        raise exception 'El creador no existe o esta inactivo';
+    end if;
+
+	--el grupo debe tener al menos 2 miembros, ademas del creador
+	if array_length(p_member_ids,1)<2 then
+		raise exception'Un grupo debe de tener al menos 3 miembros (incluyengo al creador)';
+	end if;
+
+	--crear chat grupal
+	insert into chats(is_group)values(true)
+	returning id into p_chat_id;
+	
+	--insertar al creador como miembro
+	 insert into chat_members(chat_id,user_id)values(p_chat_id,p_creator_id);
+	
+	--insertar los demas miembros
+	foreach v_member_id in array p_member_ids
+	loop
+		if exists(select 1 from user where id=v_member_id and is_active=true)then
+			--se evita duplicados, por si el creador se incluyo en el array
+			if not exists(select 1 from chat_members where chat_id=p_chat_id and user_id=v_member_id)then
+				insert into chat_members(chat_id,user_id)values(p_chat_id,v_member_id);
+			end if;
+		end if;
+	end loop;
+
+end;
+$$;
+
+create or replace procedure sp_enviar_mensage_texto(in p_chat_id uuid,in p_remitente_id uuid,in p_contenido_texto text,out p_message_id uuid)
+language plpgsql
+as $$
+begin
+
+	if not exists(select 1 from chats where id=p_chat_id)then
+		raise exception'El chat no existe';
+	end if;
+
+	 if not exists(select 1 from chat_members where chat_id=p_chat_id and user_id=p_remitente_id)then
+        raise exception 'No eres miembro de este chat';
+    end if;
+
+	if p_contenido_texto is null or trim(p_contenido_texto)=''then
+		raise exception'El mensaje no puede estar vacio';
+	end if;
+
+	--enviar mensaje
+	insert into messages(chat_id,remitente_id,message_type,contenido_texto)values(p_chat_id,p_remitente_id,'texto',p_contenido_texto)
+	returning id into p_message_id;
+
+end;
+$$;
+
+create or replace procedure sp_enviar_sticker(in p_chat_id uuid,in p_remitente_id uuid,in p_sticker_id uuid,out p_message_id uuid)
+language plpgsql
+as $$
+begin
+
+	if not exists(select 1 from chats where id=p_chat_id)then
+		raise exception'El chat no existe';
+	end if;
+
+	 if not exists(select 1 from chat_members where chat_id=p_chat_id and user_id=p_remitente_id)then
+        raise exception 'No eres miembro de este chat';
+    end if;
+
+	if not exists(select 1 from stickers where id=p_sticker_id) then
+		raise exception'El sticker no existe';
+	end if;	
+
+	--ahora de tipo sticker
+	insert into messages(chat_id,remitente_id,message_type)values(p_chat_id,p_remitente_id,'sticker')
+	returning id into p_message_id;
+
+	--ahora vincular el sticker al mensaje
+	insert into message_stickers(message_id,sticker_id)values(p_message_id,p_sticker_id);
+
+end;
+$$;
+
+	
+--																										 'audio', 'imagen', 'video'
+create or replace procedure sp_enviar_mensaje_media(in p_chat_id uuid,in p_remitente_id uuid,in p_media_url text,in p_media_type varchar(40),in p_duracion_segundos int,out p_message_id uuid)
+language plpgsql
+as $$
+begin
+	
+	if not exists(select 1 from chats where id=p_chat_id)then
+		raise exception'El chat no existe';
+	end if;
+
+	 if not exists(select 1 from chat_members where chat_id=p_chat_id and user_id=p_remitente_id)then
+        raise exception 'No eres miembro de este chat';
+    end if;
+
+	--siempre de tipo media
+	if p_media_type not in('audio','imagen','video')then
+		raise exception'Tipo de media invalido. Debe de ser: audio, imagen o video';
+	end if;
+
+	--insertar mensaje
+	insert into messages(chat_id,remitente_id,message_type)values(p_chat_id,p_remitente_id,p_media_type)
+    returning id into p_message_id;
+
+	--insertar media
+	insert into messages_media(message_id,media_url,media_type,duracion_segundos)values(p_message_id,p_media_url,p_media_type,p_duracion_segundos);
+
+end;
+$$;
+
+create or replace procedure sp_eliminar_mensaje(in p_message_id uuid,in p_user_id uuid)
+language plpgsql
+as $$
+declare
+	v_remitente_id uuid;
+    v_chat_id uuid;
+begin
+
+	--aqui obtengo el remitente del mensaje y el chat
+	select remitente_id,chat_id into v_remitente_id,v_chat_id
+	from messages
+	where id=p_message_id;
+
+	if v_remitente_id is null then
+		raise exception'El mensaje no existe';
+	end if;
+
+	if v_remitente_id!=p_user_id then
+		raise exception'Solo puedes eliminar tus propios mensajes';
+	end if;
+
+	delete from messages where id=p_message_id;
+
+end;
+$$;
+
+create or replace procedure sp_marcar_mensajes_leidos(in p_chat_id uuid,in p_user_id uuid)
+language plpgsql
+as $$
+begin
+
+	if not exists(select 1 from chat_members where chat_id=p_chat_id and user_id=p_user_id)then
+		raise exception'No eres miembro de este chat';
+	end if;
+
+	--marcar como leido todos los mensajes del chat que no sean del usuario
+	update messages
+	set is_read=true 
+	where chat_id=p_chat_id and remitente_id!=p_user_id and is_read=false;
+
+end;
+$$;
+
+create or replace function fn_listar_mensajes_chat(p_chat_id uuid,p_user_id uuid,p_limit int,p_offset int)
+returns table
+(
+
+	message_id uuid,
+    remitente_id uuid,
+    username varchar,
+    foto_perfil_url text,
+    message_type varchar,
+    contenido_texto text,
+    media_url text,
+    media_type varchar,
+    duracion_segundos int,
+    sticker_url text,
+    is_read boolean,
+    creado_en timestamp
+
+)
+language plpgsql
+as $$
+begin
+
+	if not exists(select 1 from chat_members where chat_id=p_chat_id and user_id=p_user_id)then
+        raise exception 'No eres miembro de este chat';
+	end if;
+
+	return query
+	select
+		m.id,
+        m.remitente_id,
+        pr.username,
+        pr.foto_perfil_url,
+        m.message_type,
+        m.contenido_texto,
+        mm.media_url,
+        mm.media_type,
+        mm.duracion_segundos,
+        s.sticker_url,
+        m.is_read,
+        m.creado_en
+	from messages m
+	inner join profiles p on pr.user_id=m.remitente_id
+	left join messages_media mm on mm.message_id=m.id
+	left join message_stickers ms on ms.message_id=m.id
+	left join stickers s on s.id=ms.sticker_id
+	where m.chat_id=p_chat_id
+	order by m.creado_en desc
+	limit p_limit
+	offset p_offset;
+
+	
+end;
+$$;
+
+create or replace function fn_listar_chats_usuario(p_user_id uuid,p_limit int,p_offset int)
+returns table
+(
+
+	chat_id uuid,
+    is_group boolean,
+    otro_user_id uuid,
+    otro_username varchar,
+    otra_foto_perfil text,
+    ultimo_mensaje text,
+    ultimo_mensaje_creado timestamp,
+    mensajes_no_leidos int
+
+)
+language plpgsql
+as $$
+begin
+
+	return query
+	select
+		c.id,
+		c.is_group,
+		--si es chat privado,obtener el otro usuario
+		case 
+			when c.is_group=false then
+				(select user_id from chat_members where chat_id=c.id and user_id!=p_user_id
+				limit 1)
+			else null
+		end as otro_user_id,
+
+		--username del otro usuario (si es privado)
+		case 
+			when c.is_group=false then
+				(select pr.username from chat_members cm
+				inner join profiles pr on pr.user_id=cm.user_id
+				where cm.chat_id=c.id and cm.user_id!=p_user_id
+				limit 1)
+			else 'Grupo'::varchar
+		end as otro_username,
+
+		--foto del otro usuario(si es privado)
+		case 
+			when c.is_group=false then
+				(select pr.foto_perfil_url from chat_members cm
+				inner join profiles pr on pr.user_id=cm.user_id
+				where cm.chat_id=c.id and cm.user_id!=p_user_id
+				limit 1)
+			else null
+		end as otra_foto_perfil,
+		
+
+		--ultimo mensaje
+		(select 
+			case
+				when m.message_type='texto'then m.contenido_texto
+                when m.message_type='sticker'then'🎭 Sticker'
+                when m.message_type='audio'then'🎵 Audio'
+                when m.message_type='imagen'then'📷 Imagen'
+                when m.message_type='video'then'🎥 Video'
+                else 'Mensaje'
+			end 
+		 from messages m
+ 		 where m.chat_id=c.id
+		 order by m.creado_en desc
+		 limit 1
+		 )as ultimo_mensaje,
+
+		--fecha del ultimo mensaje
+		(select m.creado_en from messages m	
+		where m.chat_id=c.id
+		order by m.creado_en desc
+		limit 1
+		)as ultimo_mensaje_creado,
+		
+		--contar mensajes no leidos
+		(select count(*)::int from messages m
+		where m.chat_id=c.id
+		and m.remitente_id!=p_user_id
+		and m.is_read=false
+		)as mensajes_no_leidos
+
+	from chats c	
+	inner join chat_members cm on cm.chat_id=c.id
+	where cm.user_id=p_user_id
+	order by(
+		select m.creado_en from messages m
+		where m.chat_id=c.id
+		order by m.creado_en desc
+		limit 1
+	)desc nulls last
+	limit p_limit
+	offset p_offset;
+
+end;
+$$;
+
+
+-----------------------------------------------------TERMINADO CRUD DE CHAT-----------------------------------------------------
+
+-----------------------------------------------------CRUD DE CHAT MEMBERS-----------------------------------------------------
+
+create or replace procedure sp_agregar_miembro_grupo(in p_chat_id uuid,in p_admin_id uuid,in p_new_member_id uuid)
+language plpgsql
+as $$
+begin
+
+	if not exists(select 1 from chats where id=p_chat_id and is_group=true)then
+        raise exception 'El chat no existe o no es grupal';
+    end if;
+
+	if not exists(select 1 from chat_members where chat_id=p_chat_id and user_id=p_admin_id)then
+		raise exception'No eres miembro de este grupo';
+	end if;
+
+	if not exists(select 1 from users where id=p_new_member_id and is_active=true)then
+		raise exception'El usuario no existe o esta inactivo';
+	end if;
+
+	if exists(select 1 from chat_members where chat_id=p_chat_id and user_id=p_new_member_id)then
+		raise exception'El usuario ya es miembro del grupo';
+	end if;
+
+	insert into chat_members(chat_id,user_id)values(p_chat_id,p_new_member_id);
+	
+	
+end;
+$$;
+
+create or replace procedure sp_eliminar_miembro_grupo(in p_chat_id uuid,in p_admin_id uuid,in p_member_id uuid)
+language plpgsql
+as $$
+begin
+	
+	if not exists(select 1 from chats where id=p_chat_id and is_group=true)then
+		raise exception'El chat no existe o no es grupal';
+	end if;
+	
+	 if not exists(select 1 from chat_members where chat_id=p_chat_id and user_id=p_admin_id)then
+        raise exception 'No eres miembro de este grupo';
+     end if;
+	
+	--eliminar miembro
+	delete from chat_members 
+	where chat_id=p_chat_id and user_id=p_member_id;
+	
+	--si el grupo queda con menos 2 de miembros, eliminarlo
+	if(select count(*)from chat_members where chat_id=p_chat_id)<2 then
+		delete from chats where id=p_chat_id;
+	end if;
+	 
+end;
+$$;
+
+create or replace procedure sp_salir_de_grupo( in p_chat_id uuid,in p_user_id uuid)
+language plpgsql
+as $$
+begin
+
+	if not exists(select 1 from chats where id=p_chat_id and is_group=true)then
+        raise exception'El chat no existe o no es grupal';
+    end if;
+
+	if not exists(select 1 from chat_members where chat_id=p_chat_id and user_id=p_user_id) then
+        raise exception 'No eres miembro de este grupo';
+    end if;
+
+	--salir del grupo
+	delete from chat_members
+	where chat_id=p_chat_id and user_id=p_user_id;
+
+	--si el grupo queda con menos 2 de miembros, eliminarlo
+	if(select count(*)from chat_members where chat_id=p_chat_id)<2 then
+		delete from chats where id=p_chat_id;
+	end if;
+	
+end;
+$$;
+
+
+
+-----------------------------------------------------TERMINADO DE CRUD CHAT MEMBERS-----------------------------------------------------
+
+-----------------------------------------------------INICIO DE CRUD NOTIFICATIONS-----------------------------------------------------
 create or replace function fn_notificar_like()
 returns trigger
 language plpgsql
@@ -703,6 +1092,130 @@ begin
 end;
 $$;
 
+create or replace function fn_notificar_follow()
+returns trigger
+language plpgsql
+as $$
+begin
+
+	if new.follower_id<>new.following_id then
+		insert into notifications(user_id,type,reference_id)values(new.following_id,'follow',new.follower_id);
+	end if;
+
+	return new;
+
+end;
+$$;
+
+
+-----------------------------------------------------TERMINADO CRUD DE NOTIFICATIONS-----------------------------------------------------
+
+-----------------------------------------------------INICIO CRUD DE LIKES-----------------------------------------------------
+
+/*
+ * 
+ * Un usuario solo puede dar un like una vez
+ * si ya existe, no duplicar 
+ * al darle like, crear notificacion
+ * al quitar like, borrar like
+ */
+
+
+create or replace procedure sp_dar_like(in p_user_id uuid,in p_post_id uuid)
+language plpgsql
+as $$
+begin
+	
+	if not exists(select 1 from posts where id=p_post_id)then
+		raise exception'el post no existe';
+	end if;
+
+	--para evitar likes duplicados
+	if exists(select 1 from likes where user_id=p_user_id and post_id=p_post_id)then
+		raise exception'El usuario ya dio like a este post';
+	end if;
+
+	--insertar like
+	insert into likes(user_id,post_id)values(p_user_id,p_post_id);
+
+end;
+$$;
+
+create or replace procedure sp_quitar_like(in p_user_id uuid, in p_post_id uuid)
+language plpgsql
+as $$
+begin
+	
+	delete from likes
+	where user_id=p_user_id
+	and post_id=p_post_id;
+
+end;
+$$;
+-----------------------------------------------------TERMINADO CRUD DE LIKES-----------------------------------------------------
+
+-----------------------------------------------------INICIO DE CRUD POST_MEDIA-----------------------------------------------------
+create or replace procedure sp_agregar_post_media(in p_post_id uuid,in p_user_id uuid,in p_media_url text,in p_media_type varchar(40),in p_position int,out p_media_id uuid)
+language plpgsql
+as $$
+declare 
+	v_autor_id uuid;
+begin
+	
+	select user_id into v_autor_id
+	from posts
+	where id=p_post_id;
+
+	if v_autor_id is null then
+        raise exception 'El post no existe';
+    end if;
+
+	if v_autor_id <> p_user_id then
+        raise exception 'No tienes permiso para agregar media a este post';
+    end if;
+
+	if p_media_type not in ('imagen', 'video') then
+        raise exception 'Tipo de media inválido. Debe ser: imagen o video';
+    end if;
+
+	if p_media_url is null or trim(p_media_url)=''then
+        raise exception 'La URL de media no puede estar vacia';
+    end if;
+
+	insert into post_media(post_id,media_url,media_type,position)values(p_post_id,p_media_url,p_media_type,coalesce(p_position,1))
+    returning id into p_media_id;
+
+end;
+$$;
+
+create or replace procedure sp_eliminar_post_media(in p_media_id uuid,in p_user_id uuid)
+language plpgsql
+as $$
+declare
+    v_autor_id uuid;
+    v_post_id uuid;
+begin
+	
+	select post_id into v_post_id
+    from post_media
+    where id=p_media_id;
+	  
+    if v_post_id is null then
+        raise exception'La media no existe';
+    end if;
+    
+	select user_id into v_autor_id
+    from posts
+    where id=v_post_id;
+
+	if v_autor_id <> p_user_id then
+        raise exception 'No tienes permiso para eliminar esta media';
+    end if;
+
+	delete from post_media where id=p_media_id;
+
+end;
+$$;
 
 
 
