@@ -1217,6 +1217,242 @@ begin
 end;
 $$;
 
+create or replace function fn_listar_post_media(p_post_id uuid)
+returns table
+(
+
+	media_id uuid,
+    media_url text,
+    media_type varchar,
+    media_position int
+
+)
+language plpgsql
+as $$
+begin
+
+	if not exists(select 1 from posts where id=p_post_id)then
+        raise exception'El post no existe';
+    end if;
+
+	return query
+	select
+		pm.id,
+        pm.media_url,
+        pm.media_type,
+        pm.position
+	from post_media pm
+	where pm.post_id=p_post_id
+	order by pm.position asc;
+	
+end;
+$$;
+
+create or replace procedure sp_actualizar_posicion_media( in p_media_id uuid,in p_user_id uuid,in p_nueva_position int)
+language plpgsql
+as $$
+declare 
+	v_autor_id uuid;
+    v_post_id uuid;
+begin
+	
+	select post_id into v_post_id
+    from post_media
+    where id=p_media_id;
+    
+    if v_post_id is null then
+        raise exception'La media no existe';
+    end if;
+    
+    --Obtener el autor del post
+    select user_id into v_autor_id
+    from posts
+    where id=v_post_id;
+    
+    --Validar que el usuario sea el autor
+    if v_autor_id<>p_user_id then
+        raise exception 'No tienes permiso para modificar esta media';
+    end if;
+    
+    
+    if p_nueva_position<1 then
+        raise exception'La posicion debe ser mayor a 0';
+    end if;
+    
+    -- Actualizar posicion
+    update post_media
+    set position=p_nueva_position
+    where id=p_media_id;
+    
+
+end;
+$$;
+-----------------------------------------------------TERMINADO CRUD DE POST_MEDIA-----------------------------------------------------
+
+-----------------------------------------------------INICIO CRUD DE STICKERS-----------------------------------------------------
+create or replace procedure sp_crear_sticker(in p_name varchar(50),in p_sticker_url text,in p_category varchar(50),out p_sticker_id uuid)
+language plpgsql
+as $$
+begin
+
+	if p_sticker_url is null or trim(p_sticker_url)=''then
+        raise exception 'La URL del sticker no puede estar vacía';
+    end if;
+
+	insert into stickers(name,sticker_url,category)values(p_name,p_sticker_url,p_category)
+    returning id into p_sticker_id;
+
+		
+end;
+$$;
+
+
+create or replace procedure sp_eliminar_sticker(in p_sticker_id uuid)
+language plpgsql
+as $$
+begin
+    
+    if not exists(select 1 from stickers where id=p_sticker_id)then
+        raise exception'El sticker no existe';
+    end if;
+    
+    -- Eliminar sticker (los message_stickers se eliminaran por CASCADE)
+    delete from stickers where id=p_sticker_id;
+    
+end;
+$$;
+
+create or replace function fn_listar_stickers(p_category varchar default null,p_limit int default 50,p_offset int default 0)
+returns table
+(
+
+    sticker_id uuid,
+    name varchar,
+    sticker_url text,
+    category varchar,
+    creado_en timestamp
+    
+)
+language plpgsql
+as $$
+begin
+    
+    return query
+    select
+        s.id,
+        s.name,
+        s.sticker_url,
+        s.category,
+        s.creado_en
+    from stickers s
+    where(p_category is null or s.category=p_category)
+    order by s.creado_en desc
+    limit p_limit
+    offset p_offset;
+    
+end;
+$$;
+
+create or replace function fn_obtener_sticker(p_sticker_id uuid)
+returns table
+(
+
+    sticker_id uuid,
+    name varchar,
+    sticker_url text,
+    category varchar,
+    creado_en timestamp
+    
+)
+language plpgsql
+as $$
+begin
+    
+    return query
+    select
+        s.id,
+        s.name,
+        s.sticker_url,
+        s.category,
+        s.creado_en
+    from stickers s
+    where s.id=p_sticker_id;
+    
+end;
+$$;
+
+create or replace function fn_listar_categorias_stickers()
+returns table
+(
+    category varchar,
+    cantidad int
+)
+language plpgsql
+as $$
+begin
+    
+    return query
+    select
+        s.category,
+        count(*)::int as cantidad
+    from stickers s
+    where s.category is not null
+    group by s.category
+    order by s.category asc;
+    
+end;
+$$;
+
+create or replace procedure sp_actualizar_sticker(in p_sticker_id uuid,in p_name varchar(50),in p_category varchar(50))
+language plpgsql
+as $$
+begin
+    
+    
+    if not exists(select 1 from stickers where id=p_sticker_id)then
+        raise exception'El sticker no existe';
+    end if;
+    
+    --Actualizar sticker
+    update stickers
+    set 
+        name=coalesce(p_name,name),
+        category=coalesce(p_category,category)
+    where id=p_sticker_id;
+    
+end;
+$$;
+
+
+--Buscar stickers por nombre
+create or replace function fn_buscar_stickers(p_search_term varchar,p_limit int default 20)
+returns table
+(
+
+    sticker_id uuid,
+    name varchar,
+    sticker_url text,
+    category varchar
+    
+)
+language plpgsql
+as $$
+begin
+    
+    return query
+    select
+        s.id,
+        s.name,
+        s.sticker_url,
+        s.category
+    from stickers s
+    where s.name ilike '%' ||p_search_term|| '%'
+    order by s.creado_en desc
+    limit p_limit;
+    
+end;
+$$;
+
 
 
 
