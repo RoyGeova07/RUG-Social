@@ -60,3 +60,4 @@ export const loginValidacion=
     body('password').notEmpty().withMessage('La constraseña es requerida'),
 
 ];
+

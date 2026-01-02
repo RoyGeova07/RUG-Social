@@ -1,4 +1,3 @@
-import { Request }from"express";
 
 declare global
 {
@@ -14,7 +13,7 @@ declare global
 
                 id:string;//uuid
                 email:string;
-                username:string;
+                username:string;    
                 is_active:boolean;
 
             };
@@ -24,4 +23,5 @@ declare global
     }
 
 }
+
 export{};

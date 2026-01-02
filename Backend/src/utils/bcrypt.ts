@@ -1,3 +1,9 @@
+/*
+
+    Esta archivo contiene funciones para hashear y comparar contraseñas usando bcrypt.
+
+*/ 
+
 import bcrypt from 'bcryptjs';
 
 const SALT_ROUNDS=10;

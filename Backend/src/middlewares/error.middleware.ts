@@ -1,5 +1,5 @@
 import { Request,Response,NextFunction } from "express";
-import { ApiResponse } from "types/response";
+import { ApiResponse } from "../../src/types/responses";
 
 //Clase para errores operacionales
 export class AppError extends Error
@@ -18,7 +18,7 @@ export class AppError extends Error
 }
 
 //Middleware para manejar errores
-export const ManejarErrorres=(err:Error|AppError,req:Request,res:Response,next:NextFunction):void=>
+export const ManejarErrorres=(err:Error|AppError,_req:Request,res:Response,_next:NextFunction):void=>
 {
 
     //si es un error operacional(esperado)

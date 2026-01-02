@@ -1,89 +1,69 @@
-import{Request,Response,NextFunction}from"express";
-import{VerificarToken}from'utils/jwt';
-import{AppError}from './error.middleware';
+import { Request, Response, NextFunction } from 'express';
+import { VerificarToken } from '../utils/jwt';
+import { AppError } from './error.middleware';
 
-export const Auntenticar=(req:Request,res=Response,next:NextFunction):void=>
+export const authenticate=(req:Request,_res:Response,next:NextFunction):void => 
 {
 
-    try
-    {
+   try 
+   {
+        const authHeader=req.headers.authorization;
 
-        //obtener el token del header
-        const autHeader=req.headers.authorization;
-
-        if(!autHeader||!autHeader.startsWith('Bearer '))
+        if(!authHeader||!authHeader.startsWith('Bearer ')) 
         {
 
             throw new AppError(401,'Token no proporcionado o formato invalido');
 
         }
-        const token=autHeader.split(' ')[1];
 
-        //aqui se verifica el token
+        const token=authHeader.split(' ')[1];
         const descifrado=VerificarToken(token);
 
-        //agregar la informacion del usuario al request
-        req.user=
+        //usar casting para asignar user
+        (req as any).user=
         {
-
             id:descifrado.id,
             email:descifrado.email,
             username:descifrado.username,
             is_active:true,
-
         };
+
         next();
-
     }catch(error){
-
-        if(error instanceof AppError)
+        if(error instanceof AppError) 
         {
-
             next(error);
-
         }else{
 
             next(new AppError(401,'Token invalido o expirado'));
 
         }
-
     }
 
 };
 
-//no lanzara error si no hay token
-export const Autorizacion=(req:Request,res:Response,next:NextFunction):void=>
-{
+export const Autorizacion = (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): void => {
+  try {
+    const authHeader = req.headers.authorization;
 
-    try
-    {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const descifrado = VerificarToken(token);
 
-        const authHeader=req.headers.authorization;
-
-        if(authHeader&&authHeader.startsWith('Bearer '))
-        {
-
-            const token=authHeader.split(' ')[1];
-            const descifrado=VerificarToken(token);
-
-            req.user=
-            {
-
-                id:descifrado.id,
-                email:descifrado.email,
-                username:descifrado.username,
-                is_active:true,
-
-            };
-
-        }
-        next();
-
-    }catch(error){
-
-        //si falla, continuar sin usuario
-        next();
-
+      (req as any).user = {
+        id: descifrado.id,
+        email: descifrado.email,
+        username: descifrado.username,
+        is_active: true,
+      };
     }
 
-}
+    next();
+  } catch (error) {
+    next();
+  }
+};

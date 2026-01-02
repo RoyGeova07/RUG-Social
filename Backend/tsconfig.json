@@ -1,22 +1,16 @@
 {
   "compilerOptions": {
-    /* Opciones de lenguaje */
     "target": "ES2020",
     "lib": ["ES2020"],
     "module": "commonjs",
     "moduleResolution": "node",
-    
-    /* Rutas */
+    "typeRoots": ["./src/types", "./node_modules/@types"],
     "rootDir": "./src",
     "outDir": "./dist",
     "baseUrl": "./src",
-    
-    /* Interoperabilidad */
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    
-    /* Verificación de tipos */
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
@@ -24,14 +18,10 @@
     "strictPropertyInitialization": true,
     "noImplicitThis": true,
     "alwaysStrict": true,
-    
-    /* Verificaciones adicionales */
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    
-    /* Otros */
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "declaration": true,
@@ -39,12 +29,6 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.spec.ts"
-  ]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "**/*.spec.ts"]
 }

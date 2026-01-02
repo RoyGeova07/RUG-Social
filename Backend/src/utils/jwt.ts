@@ -1,4 +1,10 @@
-import jwt,{SignOptions}from'jsonwebtoken';
+/*
+
+    este archivo contiene funciones para generar y verificar tokens JWT
+
+*/ 
+
+import jwt,{}from'jsonwebtoken';
 
 interface JwtPayload
 {

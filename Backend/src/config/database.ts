@@ -7,7 +7,21 @@ Configurar CORS
 Configurar Express
 Manejar puertos y ajustes globales
 
+Arquitectura
+Cliente (Postman/Frontend)
+    ↓
+Routes (Define las rutas)
+    ↓
+Validation (Valida los datos)
+    ↓
+Controller (Recibe peticion HTTP, maneja respuesta)
+    ↓
+Service (Logica de negocio)
+    ↓
+Database (Stored Procedures)
+
 */
+
 
 import {Pool}from 'pg';
 import dotenv from 'dotenv';

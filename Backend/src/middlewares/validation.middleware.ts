@@ -1,6 +1,6 @@
 import { Request,Response,NextFunction }from"express";
 import { validationResult,ValidationChain }from"express-validator";
-import { ApiResponse }from"types/response";
+import { ApiResponse }from"../../src/types/responses";
 
 export const validar=(validations:ValidationChain[])=>
 {
