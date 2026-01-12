@@ -7,6 +7,8 @@ Configurar CORS
 Configurar Express
 Manejar puertos y ajustes globales
 
+
+
 Arquitectura
 Cliente (Postman/Frontend)
     ↓

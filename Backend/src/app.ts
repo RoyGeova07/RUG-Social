@@ -1,9 +1,24 @@
+/**
+ * 
+ * Hash de contraseñas (bcrypt)
+
+  Generacion de tokens
+
+  Subida de imagenes
+
+  Formateo de fechas
+
+  Validaciones
+ * 
+ */
+
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { ManejarErrorres, notFound } from './middlewares/error.middleware';
 import { logger } from './middlewares/logger.middleware';
 import authRoutes from './modules/auth/auth.routes';
+import usersRoutes from './modules/auth/users/users.routes'
 
 dotenv.config();
 
@@ -60,6 +75,7 @@ app.get('/',(_req: Request,res:Response)=>
 
       health:'/api/health',
       auth:'/api/auth',
+      users:'/api/users',
 
     },
 
@@ -68,6 +84,7 @@ app.get('/',(_req: Request,res:Response)=>
 });
 
 app.use('/api/auth',authRoutes);
+app.use('/api/users',usersRoutes);
 
 app.use(notFound);
 app.use(ManejarErrorres);

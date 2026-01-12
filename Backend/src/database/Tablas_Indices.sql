@@ -25,6 +25,9 @@ create table users
 
 );
 
+SELECT datname FROM pg_database;
+
+
 /*
  * 
  * creo una tabla aparte porque el estado del usuario es informacion temporal y muy cambiante,

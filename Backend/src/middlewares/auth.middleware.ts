@@ -1,8 +1,22 @@
+/**
+ * 
+ *  Validador de token JWT
+
+    Validacion de permisos
+
+    Validacion de datos (DTO)
+
+    Rate limiting
+
+    Cors
+ * 
+ */
+
 import { Request, Response, NextFunction } from 'express';
 import { VerificarToken } from '../utils/jwt';
 import { AppError } from './error.middleware';
 
-export const authenticate=(req:Request,_res:Response,next:NextFunction):void => 
+export const authenticate=(req:Request,_res:Response,next:NextFunction):void=> 
 {
 
    try 
@@ -12,7 +26,7 @@ export const authenticate=(req:Request,_res:Response,next:NextFunction):void =>
         if(!authHeader||!authHeader.startsWith('Bearer ')) 
         {
 
-            throw new AppError(401,'Token no proporcionado o formato invalido');
+          throw new AppError(401,'Token no proporcionado o formato invalido');
 
         }
 
