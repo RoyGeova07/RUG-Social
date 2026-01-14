@@ -15,7 +15,7 @@ export const ActualizarPerfilValidacion=
 
     body('foto_perfil_url').optional().isURL().withMessage('Debe ser una URL valida'),
 
-    body('Nacimiento').optional().isISO8601().withMessage('Debe ser una fecha valida (YYY-MM-DD)').custom((value)=>
+    body('nacimiento').optional().isISO8601().withMessage('Debe ser una fecha valida (YYY-MM-DD)').custom((value)=>
     {
 
         const birthDate=new Date(value);

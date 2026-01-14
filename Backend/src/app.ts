@@ -19,6 +19,7 @@ import { ManejarErrorres, notFound } from './middlewares/error.middleware';
 import { logger } from './middlewares/logger.middleware';
 import authRoutes from './modules/auth/auth.routes';
 import usersRoutes from './modules/auth/users/users.routes'
+import postsRoutes from './modules/auth/posts/posts.routes'
 
 dotenv.config();
 
@@ -76,6 +77,7 @@ app.get('/',(_req: Request,res:Response)=>
       health:'/api/health',
       auth:'/api/auth',
       users:'/api/users',
+      posts:'/api/posts',
 
     },
 
@@ -85,6 +87,7 @@ app.get('/',(_req: Request,res:Response)=>
 
 app.use('/api/auth',authRoutes);
 app.use('/api/users',usersRoutes);
+app.use('/api/posts',postsRoutes);
 
 app.use(notFound);
 app.use(ManejarErrorres);

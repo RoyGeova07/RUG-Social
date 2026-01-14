@@ -245,6 +245,8 @@ begin
 end;
 $$;
 
+
+
 create or replace function listar_posts_global(p_limit int,p_offset int)
 returns table
 (
@@ -265,23 +267,23 @@ begin
 
 	return query 
 	select 
-		po.id,
-        po.user_id,
+		po.id as post_id,
+        po.user_id as autor_id,
         pr.username,
         po.subtitulo,
         po.creado_en,
 		
 		--contar likes
-		(select count(*)from likes l where l.post_id=po.id)as likes_count,
+		(select count(*)::int from likes l where l.post_id=po.id)as likes_count,
 
 		--contar comentarios
-		(select count(*)from comments c where c.post_id=po.id)as comments_count,
+		(select count(*)::int from comments c where c.post_id=po.id)as comments_count,
 
 		--primer media
-		(select media_url
+		(select m.media_url
 		from post_media m
 		where m.post_id=po.id
-		order by  m.position asc
+		order by m.position asc
 		limit 1)as media_url
 
 	from posts po
@@ -291,6 +293,7 @@ begin
 
 end;
 $$;
+
 
 create or replace function listar_posts_usuario(p_user_id uuid,p_limit int,p_offset int)
 returns table
@@ -312,20 +315,20 @@ begin
     
     return query
     select
-        po.id,
-        po.user_id,
+        po.id as post_id,
+        po.user_id as autor_id,
         pr.username,
         po.subtitulo,
         po.creado_en,
 		
-		(select count(*)from likes l where l.post_id=po.id)as likes_count,
-		(select count(*)from comments c where c.post_id=po.id)as comments_count,	
+		(select count(*)::int from likes l where l.post_id=po.id)as likes_count,
+		(select count(*)::int from comments c where c.post_id=po.id)as comments_count,	
 
-		  (select media_url 
+		  (select m.media_url 
           from post_media m 
           where m.post_id=po.id 
           order by m.position asc
-          limit 1)
+          limit 1)as media_url
 	
 	from posts po
 	inner join profiles pr on pr.user_id=po.user_id
@@ -1152,6 +1155,52 @@ begin
 
 end;
 $$;
+
+create or replace function fn_listar_likes_post(p_post_id uuid,p_limit int,p_offset int)
+returns table
+(
+
+	user_id uuid,
+	username varchar,
+	full_name varchar,
+	foto_perfil_url text,
+	creado_en timestamp
+
+)
+language plpgsql
+as $$
+begin
+	
+	if not exists(select 1 from posts where id=p_post_id)then
+		raise exception'El post no existe';
+	end if;
+
+	return query
+	select 
+		pr.user_id,
+		pr.username,
+		pr.full_name,
+		pr.foto_perfil_url,
+		l.creado_en
+	from likes l
+	inner join profiles pr on pr.user_id=l.user_id
+	where l.post_id=p_post_id
+	order by l.creado_en desc
+	limit p_limit offset p_offset;
+
+end;
+$$;
+
+create or replace function fn_user_dio_like(p_user_id uuid,p_post_id uuid)
+returns boolean
+language sql
+as $$
+
+	select exists(select 1 from likes where user_id=p_user_id and post_id=p_post_id);
+	
+$$;
+
+
 -----------------------------------------------------TERMINADO CRUD DE LIKES-----------------------------------------------------
 
 -----------------------------------------------------INICIO DE CRUD POST_MEDIA-----------------------------------------------------
