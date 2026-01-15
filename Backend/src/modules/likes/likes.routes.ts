@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { LikesController } from "./likes.controller";
 import { postIdValidation,listLikesValidation } from "./likes.validation";
-import { validar } from "../../../middlewares/validation.middleware";
-import { authenticate } from "../../../middlewares/auth.middleware";
+import { validar } from "../../middlewares/validation.middleware";
+import { authenticate } from "../../middlewares/auth.middleware";
 
 const router=Router();
 const likesController=new LikesController();

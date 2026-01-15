@@ -1,6 +1,6 @@
 import { Request,Response,NextFunction } from "express";
 import { UsersService } from "./users.service";
-import { ApiResponse } from "../../../types/responses";
+import { ApiResponse } from "../../types/responses";
 
 export class UsersControllers
 {

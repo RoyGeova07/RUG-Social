@@ -18,8 +18,11 @@ import dotenv from 'dotenv';
 import { ManejarErrorres, notFound } from './middlewares/error.middleware';
 import { logger } from './middlewares/logger.middleware';
 import authRoutes from './modules/auth/auth.routes';
-import usersRoutes from './modules/auth/users/users.routes'
-import postsRoutes from './modules/auth/posts/posts.routes'
+import usersRoutes from './modules/users/users.routes'
+import postsRoutes from './modules/posts/posts.routes'
+import likesRoutes from './modules/likes/likes.routes'
+import commentsRoutes from './modules/comments/comments.routes'
+import storiesRoutes from './modules/stories/stories.routes'
 
 dotenv.config();
 
@@ -78,6 +81,9 @@ app.get('/',(_req: Request,res:Response)=>
       auth:'/api/auth',
       users:'/api/users',
       posts:'/api/posts',
+      likes:'/api/likes',
+      comments:'/api/comments',
+      stories:'/api/stories',
 
     },
 
@@ -88,6 +94,9 @@ app.get('/',(_req: Request,res:Response)=>
 app.use('/api/auth',authRoutes);
 app.use('/api/users',usersRoutes);
 app.use('/api/posts',postsRoutes);
+app.use('/api/likes',likesRoutes);
+app.use('/api/comments',commentsRoutes);
+app.use('/api/stories',storiesRoutes);
 
 app.use(notFound);
 app.use(ManejarErrorres);

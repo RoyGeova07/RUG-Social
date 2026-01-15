@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { PostsController } from "./posts.controller";
 import { createPostValidation,updatePostValidation,postIdValidation,listPostsValidation,getUserPostsValidation,addMediaValidation,deleteMediaValidation } from "./posts.validation";
-import { validar } from "../../../middlewares/validation.middleware";
-import { authenticate } from "../../../middlewares/auth.middleware";
+import { validar } from "../../middlewares/validation.middleware";
+import { authenticate } from "../../middlewares/auth.middleware";
 
 const router=Router();
 const postsController=new PostsController();

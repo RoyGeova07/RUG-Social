@@ -1,5 +1,5 @@
-import { pool } from "../../../config/database";
-import { AppError } from "../../../middlewares/error.middleware";
+import { pool } from "../../config/database";
+import { AppError } from "../../middlewares/error.middleware";
 
 export class PostsService
 {

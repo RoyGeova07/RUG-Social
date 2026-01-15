@@ -1,7 +1,7 @@
 import { Request,Response,NextFunction, } from "express";
 import { PostsService } from "./posts.service";
-import { ApiResponse } from "../../../types/responses";
-import { AppError } from "../../../middlewares/error.middleware";
+import { ApiResponse } from "../../types/responses";
+import { AppError } from "../../middlewares/error.middleware";
 
 export class PostsController
 {

@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { UsersControllers } from "./users.controller";
 import { ActualizarPerfilValidacion,getUserByUsernameValidation,followUserValidation,ListarUsuarioValidacion,getFollowListValidation } from "./users.validation";
-import { validar } from "../../../middlewares/validation.middleware";
-import { authenticate } from "../../../middlewares/auth.middleware";
+import { validar } from "../../middlewares/validation.middleware";
+import { authenticate } from "../../middlewares/auth.middleware";
 
 const router=Router();
 const usersController=new UsersControllers();
