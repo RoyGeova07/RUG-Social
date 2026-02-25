@@ -376,7 +376,7 @@ language plpgsql
 as $$
 begin
 
-	if p_contenido is null or trim(p_contenido)=' 'then
+	if p_contenido is null or trim(p_contenido)=''then
 		raise exception'El comentario no puede estar vacio';
 	end if;
 
@@ -566,6 +566,10 @@ begin
 		raise exception'La story no existe';
 	end if;
 
+	if v_autor<>p_user_id then
+		raise exception'Solo el autor puede eliminar la story';
+	end if;
+
 	delete from stories
 	where id=p_story_id;
 	
@@ -681,7 +685,7 @@ begin
 	--insertar los demas miembros
 	foreach v_member_id in array p_member_ids
 	loop
-		if exists(select 1 from user where id=v_member_id and is_active=true)then
+		if exists(select 1 from users where id=v_member_id and is_active=true)then
 			--se evita duplicados, por si el creador se incluyo en el array
 			if not exists(select 1 from chat_members where chat_id=p_chat_id and user_id=v_member_id)then
 				insert into chat_members(chat_id,user_id)values(p_chat_id,v_member_id);
@@ -857,7 +861,7 @@ begin
         m.is_read,
         m.creado_en
 	from messages m
-	inner join profiles p on pr.user_id=m.remitente_id
+	inner join profiles pr on pr.user_id=m.remitente_id
 	left join messages_media mm on mm.message_id=m.id
 	left join message_stickers ms on ms.message_id=m.id
 	left join stickers s on s.id=ms.sticker_id

@@ -20,6 +20,6 @@ export const listLikesValidation=
 
     query('page').optional().isInt({min:1}).withMessage('La pagina debe ser un numero mayor a 0'),
 
-    query('limit').optional().isInt({min:1,max:300}).withMessage('El limite debe estar entre 1 y 100'),
+    query('limit').optional().isInt({min:1,max:300}).withMessage('El limite debe estar entre 1 y 300'),
 
 ]

@@ -103,7 +103,7 @@ export class LikesController
         {
 
             const{postId}=_req.params;
-            const page=parseInt(_req.params.page as string)||1;
+            const page=parseInt(_req.query.page as string)||1;
             const limit=parseInt(_req.query.limit as string)||20;
             const result=await this.likesService.getPostLike(postId,page,limit)
 
@@ -112,6 +112,7 @@ export class LikesController
 
                 success:true,
                 message:'Likes obtenidos exitosamente',
+                data:result.likes,
                 timestamp:new Date().toISOString(),
 
             };

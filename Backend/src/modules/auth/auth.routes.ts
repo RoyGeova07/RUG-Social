@@ -24,7 +24,7 @@ const authController=new AuthController();
 //                      valida datos        verifica errores            ejecuta el controller
 router.post('/register',validar(RegistrarValidacion),authController.register);
 
-router.post('/login',loginValidacion,validar(loginValidacion),authController.login);
+router.post('/login',validar(loginValidacion),authController.login);
 
 /**
  * GET /api/auth/me
