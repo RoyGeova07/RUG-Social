@@ -19,13 +19,6 @@ router.get('/',validar(ListarUsuarioValidacion),usersController.listUsers);
 */
 router.put('/profile',authenticate,validar(ActualizarPerfilValidacion),usersController.updateProfile)
 
-
-/**
- * GET /api/users/:username
- * Ver perfil de usuario por username(publico)
-*/
-router.get('/:username',validar(getUserByUsernameValidation),usersController.getUsersByUsername)
-
 /**
  * POST /api/users/follow/:userId
  * Seguir a un usuario(requiere autenticacion)
@@ -37,6 +30,12 @@ router.post('/follow/:userId',authenticate,validar(followUserValidation),usersCo
  * Dejar de seguir(requiere autenticacion)
 */
 router.delete('/follow/:userId',authenticate,validar(followUserValidation),usersController.unfollowUser)
+
+/**
+ * GET /api/users/:username
+ * Ver perfil de usuario por username(publico)
+*/
+router.get('/:username',validar(getUserByUsernameValidation),usersController.getUsersByUsername)
 
 /**
  * GET /api/users/:userId/followers

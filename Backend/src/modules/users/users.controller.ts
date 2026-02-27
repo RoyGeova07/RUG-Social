@@ -1,6 +1,7 @@
 import { Request,Response,NextFunction } from "express";
 import { UsersService } from "./users.service";
 import { ApiResponse } from "../../types/responses";
+import { AppError } from "../../middlewares/error.middleware";
 
 export class UsersControllers
 {
@@ -17,13 +18,13 @@ export class UsersControllers
      *  GET /api/users/:username
      *  Obtener perfil de usuario por username
     */
-    getUsersByUsername=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    getUsersByUsername=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const{username}=_req.params
+            const{username}=req.params
 
             const user=await this.usersService.getUserbyUsername(username);
 
@@ -49,14 +50,14 @@ export class UsersControllers
      * GET /api/users
      * Listar usuarios con paginacion
     */
-    listUsers=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    listUsers=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const page=parseInt(_req.query.page as string)||1;
-            const limit=parseInt(_req.query.limit as string)||10;
+            const page=parseInt(req.query.page as string)||1;
+            const limit=parseInt(req.query.limit as string)||10;
 
             const resultado=await this.usersService.listUsers(page,limit)
 
@@ -65,12 +66,10 @@ export class UsersControllers
 
                 success:true,
                 message:'Usuarios obtenidos exitosamente',
-                data:resultado.users,
+                data:{users:resultado.users,pagination:resultado.pagination},
                 timestamp:new Date().toISOString(),
 
             };
-            //agregar paginacion al response 
-            (response as any).pagination=resultado.pagination;
             res.status(200).json(response)
 
         }catch(error){
@@ -84,21 +83,21 @@ export class UsersControllers
    * PUT /api/users/profile
    * Actualizar perfil del usuario autenticado
    */
-   updateProfile=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+   updateProfile=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
    {
 
         try
         {
 
-            const user=(_req as any).user;
+            const user=req.user;
 
             if(!user)
             {
 
-                throw new Error('Usuario no autenticado')
+                throw new AppError(401,'Usuario no autenticado')
 
             }
-            const updateProfile=await this.usersService.updateProfile(user.id,_req.body);
+            const updateProfile=await this.usersService.updateProfile(user.id,req.body);
             const response:ApiResponse=
             {
 
@@ -121,14 +120,22 @@ export class UsersControllers
    * POST /api/users/follow/:userId
    * Seguir a un usuario
    */
-    followUser=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    followUser=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const user=(_req as any).user
-            const{userId}=_req.params;
+            const user=req.user;
+
+            if(!user)
+            {
+
+                throw new AppError(401,'Usuario no autenticado')
+
+            }
+
+            const{userId}=req.params;
 
             await this.usersService.followUser(user.id,userId)
             const Response:ApiResponse=
@@ -152,19 +159,19 @@ export class UsersControllers
    * DELETE /api/users/follow/:userId
    * Dejar de seguir a un usuario
    */
-    unfollowUser=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    unfollowUser=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const user=(_req as any).user
-            const{userId}=_req.params;
+            const user=req.user;
+            const{userId}=req.params;
 
             if(!user)
             {
 
-                throw new Error('Usuario no autenticado')
+                throw new AppError(401,'Usuario no autenticado')
 
             }
             await this.usersService.unfollowUser(user.id,userId)
@@ -172,8 +179,8 @@ export class UsersControllers
             const response:ApiResponse=
             {
 
-                success: true,
-                message: 'Dejaste de seguir a este usuario',
+                success:true,
+                message:'Dejaste de seguir a este usuario',
                 timestamp: new Date().toISOString(),
 
             }
@@ -190,15 +197,15 @@ export class UsersControllers
    * GET /api/users/:userId/followers
    * Obtener seguidores de un usuario
    */
-    getFollowers=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    getFollowers=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const{userId}=_req.params
-            const page=parseInt(_req.query.page as string)||1;
-            const limit=parseInt(_req.query.limit as string)||20;
+            const{userId}=req.params
+            const page=parseInt(req.query.page as string)||1;
+            const limit=parseInt(req.query.limit as string)||20;
 
             const resultado=await this.usersService.getFollowers(userId,page,limit)
 
@@ -207,7 +214,7 @@ export class UsersControllers
 
                 success:true,
                 message:'Seguidores obtenidos exitosamente',
-                data:resultado.followers,
+                data:{followers:resultado.followers,pagination:resultado.pagination},
                 timestamp:new Date().toISOString(),
 
             };
@@ -226,15 +233,15 @@ export class UsersControllers
    * GET /api/users/:userId/following
    * Obtener usuarios que sigue
    */
-    getFollowing=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    getFollowing=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const{userId}=_req.params
-            const page=parseInt(_req.query.page as string)||1;
-            const limit=parseInt(_req.query.limit as string)||20;
+            const{userId}=req.params
+            const page=parseInt(req.query.page as string)||1;
+            const limit=parseInt(req.query.limit as string)||20;
 
             const result=await this.usersService.getFollowing(userId,page,limit)
 
@@ -243,7 +250,7 @@ export class UsersControllers
 
                 success: true,
                 message: 'Seguidos obtenidos exitosamente',
-                data: result.following,
+                data:{following:result.following,pagination:result.pagination},
                 timestamp: new Date().toISOString(),
 
             };

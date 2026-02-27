@@ -23,7 +23,7 @@ export interface ApiResponse<T=any>
 export interface PaginatedResponse<T>
 {
 
-    succes:boolean;
+    success:boolean;
     message:string;
     data:T[];
     pagination:

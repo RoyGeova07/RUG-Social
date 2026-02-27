@@ -75,7 +75,7 @@ export const ListarUsuarioValidacion=
 
     query('page').optional().isInt({min:1}).withMessage('La pagina debe ser un numero mayor a 0'),
 
-    query('limit').optional().isInt({min:1,max:100}).withMessage('La busqueda debe de tener entre 1 y 50 caracteres'),
+    query('limit').optional().isInt({min:1,max:100}).withMessage('La busqueda debe de tener entre 1 y 100 caracteres'),
 
 ];
 

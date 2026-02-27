@@ -185,13 +185,13 @@ export class UsersService
                 throw new AppError(400,'Ya sigues a este usuario')
 
             }
-            if(error.message?.includes('No existe'))
+            if(error.message?.includes('no existe o esta inactivo'))
             {
 
                 throw new AppError(404,'Usuario no encontrado')
 
             }
-            if(error.message?.includes('Ti mismo'))
+            if(error.message?.includes('No puede seguirte a ti mismo'))
             {
 
                 throw new AppError(400,'No puedes seguirte a ti mismo')
@@ -237,7 +237,7 @@ export class UsersService
             const countResult=await pool.query('SELECT COUNT(*) FROM follows WHERE following_id=$1',[userId])
 
             const total=parseInt(countResult.rows[0].count)
-            const totalpages=Math.ceil(total/limit)
+            const totalPages=Math.ceil(total/limit)
 
             return{
 
@@ -248,7 +248,7 @@ export class UsersService
                     page,
                     limit,
                     total,
-                    totalpages,
+                    totalPages,
 
                 },
 
@@ -277,7 +277,7 @@ export class UsersService
             const countResult=await pool.query('SELECT COUNT(*) FROM follows WHERE follower_id=$1',[userId])
 
             const total=parseInt(countResult.rows[0].count)
-            const totalpages=Math.ceil(total/limit)
+            const totalPages=Math.ceil(total/limit)
 
             return{
 
@@ -288,7 +288,7 @@ export class UsersService
                     page,
                     limit,
                     total,
-                    totalpages,
+                    totalPages,
 
                 },
 

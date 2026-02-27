@@ -18,13 +18,13 @@ export class CommentsController
     * POST /api/comments/:postId
     * Crear un comentario en un post
     */
-    createComment=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    createComment=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const user=(_req as any).user
+            const user=req.user
 
             if(!user)
             {
@@ -32,8 +32,8 @@ export class CommentsController
                 throw new AppError(401,'Usuario no autenticado')
 
             }
-            const{postId}=_req.params
-            const{contenido}=_req.body
+            const{postId}=req.params
+            const{contenido}=req.body
             const comment=await this.commentsService.createComment(user.id,postId,contenido);
             const response:ApiResponse=
             {
@@ -57,26 +57,25 @@ export class CommentsController
     * GET /api/comments/:postId
     * Listar comentarios de un post
     */
-    getPostComments=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    getPostComments=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const{postId}=_req.params
-            const page=parseInt(_req.query.page as string)||1;
-            const limit=parseInt(_req.query.limit as string)||20;
+            const{postId}=req.params
+            const page=parseInt(req.query.page as string)||1;
+            const limit=parseInt(req.query.limit as string)||20;
             const result=await this.commentsService.getPostComments(postId,page,limit)
             const response:ApiResponse=
             {
 
                 success:true,
                 message:'Comentarios obtenidos exitosamente',
-                data:result.comments,
+                data:{comments:result.comments,pagination:result.pagination},
                 timestamp:new Date().toISOString(),
 
             };
-            (response as any).pagination=result.pagination
             res.status(200).json(response)
             
 
@@ -91,20 +90,20 @@ export class CommentsController
     * DELETE /api/comments/:commentId
     * Eliminar un comentario
     */
-    deleteComment=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    deleteComment=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const user=(_req as any).user
+            const user=req.user
             if(!user)
             {
 
                 throw new AppError(401,'Usuario no autenticado')
 
             }
-            const{commentId}=_req.params
+            const{commentId}=req.params
             await this.commentsService.deleteComment(commentId,user.id)
             const response:ApiResponse=
             {

@@ -75,13 +75,13 @@ export class AuthService
         }catch(error:any){
 
             //para manejar errores especificos 
-            if(error.message?.includes('Ya esta registrado'))
+            if(error.message?.includes('Correo ya esta registrado'))
             {
 
                 throw new AppError(400,'El correo ya esta registrado');
 
             }
-            if(error.message?.includes('Ya existe'))
+            if(error.message?.includes('Nombre de usuarioya existe'))
             {
 
                 throw new AppError(400,'El nombre de usuario ya existe');

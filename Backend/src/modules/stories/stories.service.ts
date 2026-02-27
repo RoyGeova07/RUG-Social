@@ -144,6 +144,14 @@ export class StoriesService
                 throw new AppError(404,'Story no encontrada')
 
             }
+
+            if(error.message?.includes('Solo el autor'))
+            {
+
+                throw new AppError(403,'No puedes eliminar esta story')
+
+            }
+
             throw new AppError(500,'Error al eliminar story')
 
         }

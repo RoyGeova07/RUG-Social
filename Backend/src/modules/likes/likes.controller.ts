@@ -18,13 +18,13 @@ export class LikesController
     * POST /api/likes/:postId
     * Dar like a un post
     */
-    likePost=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    likePost=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const user=(_req as any).user;
+            const user=req.user;
 
             if(!user)
             {
@@ -32,7 +32,7 @@ export class LikesController
                 throw new AppError(401,'Usuario no autenticado')
 
             }
-            const {postId}=_req.params;
+            const {postId}=req.params;
 
             await this.likesService.likePost(user.id,postId);
 
@@ -57,13 +57,13 @@ export class LikesController
     * DELETE /api/likes/:postId
     * Quitar like de un post
     */
-    unlikePost=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    unlikePost=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const user=(_req as any).user;
+            const user=req.user;
 
             if(!user)
             {
@@ -71,7 +71,7 @@ export class LikesController
                 throw new AppError(401,'Usuario no autenticado')
 
             }
-            const{postId}=_req.params;
+            const{postId}=req.params;
 
             await this.likesService.unlikePost(user.id,postId);
 
@@ -112,11 +112,10 @@ export class LikesController
 
                 success:true,
                 message:'Likes obtenidos exitosamente',
-                data:result.likes,
+                data:{likes:result.likes,pagination:result.pagination},
                 timestamp:new Date().toISOString(),
 
             };
-            (response as any).pagination=result.pagination
             res.status(200).json(response)
 
         }catch(error){
@@ -130,20 +129,20 @@ export class LikesController
     * GET /api/likes/:postId/check
     * Verificar si el usuario autenticado dio like
     */
-    checkUserLike=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    checkUserLike=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const user=(_req as any).user;
+            const user=req.user;
             if(!user)
             {
 
                 throw new AppError(401,'Usuario no autenticado')
 
             }
-            const{postId}=_req.params;
+            const{postId}=req.params;
             const hasLiked=await this.likesService.checkUserLike(user.id,postId);
             const response:ApiResponse=
             {

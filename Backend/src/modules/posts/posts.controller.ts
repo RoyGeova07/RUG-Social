@@ -3,6 +3,7 @@ import { PostsService } from "./posts.service";
 import { ApiResponse } from "../../types/responses";
 import { AppError } from "../../middlewares/error.middleware";
 
+//AUN FALTA CORRECCIONES AL ELIMINAR EL POST CON MEDIA, DEBERIA ELIMINAR PRIMERO LA MEDIA Y LUEGO EL POST, O EN CASO DE QUE SE ELIMINE EL POST SE DEBE ELIMINAR EN CASCADA LA MEDIA
 export class PostsController
 {
 
@@ -19,13 +20,13 @@ export class PostsController
     * POST /api/posts
     * Crear un nuevo post
     */
-    createPost=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    createPost=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const user=(_req as any).user;
+            const user=req.user;
 
             if(!user)
             {
@@ -33,7 +34,7 @@ export class PostsController
                 throw new AppError(401,'Usuario no autenticado')
 
             }
-            const {subtitulo}=_req.body
+            const {subtitulo}=req.body
 
             const post=await this.postsService.createPost(user.id,subtitulo);
 
@@ -60,14 +61,14 @@ export class PostsController
     * GET /api/posts
     * Listar posts globales (feed publico)
     */
-    listGlobalPosts=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    listGlobalPosts=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const page=parseInt(_req.query.page as string)||1;
-            const limit=parseInt(_req.query.limit as string)||10;
+            const page=parseInt(req.query.page as string)||1;
+            const limit=parseInt(req.query.limit as string)||10;
 
             const result=await this.postsService.listGlobalPosts(page,limit)
 
@@ -76,11 +77,10 @@ export class PostsController
 
                 success:true,
                 message:'Posts obtenidos exitosamente',
-                data:result.posts,
+                data:{posts:result.posts,pagination:result.pagination},
                 timestamp:new Date().toISOString(),
 
             };
-            (response as any).pagination=result.pagination;
             res.status(200).json(response);
 
         }catch(error){
@@ -95,15 +95,15 @@ export class PostsController
     * GET /api/posts/user/:userId
     * Listar posts de un usuario
     */
-    getUserPosts=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    getUserPosts=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const {userId}=_req.params
-            const page=parseInt(_req.query.page as string)||1;
-            const limit=parseInt(_req.query.limit as string)||10;
+            const {userId}=req.params
+            const page=parseInt(req.query.page as string)||1;
+            const limit=parseInt(req.query.limit as string)||10;
 
             const result=await this.postsService.getUserPosts(userId,page,limit)
 
@@ -112,11 +112,10 @@ export class PostsController
 
                 success:true,
                 message:'Posts del usuario obtenidos exitosamente',
-                data:result.posts,
+                data:{posts:result.posts,pagination:result.pagination},
                 timestamp:new Date().toISOString(),
 
             };
-            (response as any).pagination=result.pagination
             res.status(200).json(response)
 
 
@@ -132,13 +131,13 @@ export class PostsController
     * GET /api/posts/:postId
     * Obtener un post específico
     */
-    getPostById=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    getPostById=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const{postId}=_req.params
+            const{postId}=req.params
 
             const post=await this.postsService.getPostById(postId);
 
@@ -164,13 +163,13 @@ export class PostsController
     * PUT /api/posts/:postId
     * Editar un post (solo el autor)
     */
-    updatePost=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    updatePost=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const user=(_req as any).user;
+            const user=req.user;
 
             if(!user)
             {
@@ -178,8 +177,8 @@ export class PostsController
                 throw new AppError(401,'Usuario no autenticado');
 
             }
-            const{postId}=_req.params;
-            const{subtitulo}=_req.body;
+            const{postId}=req.params;
+            const{subtitulo}=req.body;
 
             const post=await this.postsService.updatePost(postId,user.id,subtitulo);
 
@@ -205,13 +204,13 @@ export class PostsController
     * DELETE /api/posts/:postId
     * Eliminar un post (solo el autor)
     */
-    deletePost=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    deletePost=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const user=(_req as any).user;
+            const user=req.user;
 
             if(!user)
             {
@@ -219,7 +218,7 @@ export class PostsController
                 throw new AppError(401,'Usuario no autenticado');
 
             }
-            const{postId}=_req.params;
+            const{postId}=req.params;
 
             await this.postsService.deletePost(postId,user.id);
 
@@ -244,13 +243,13 @@ export class PostsController
     * POST /api/posts/:postId/media
     * Agregar media a un post
     */
-   addMedia=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+   addMedia=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
    {
 
         try
         {
 
-            const user=(_req as any).user;
+            const user=req.user;
 
             if(!user)
             {
@@ -258,8 +257,8 @@ export class PostsController
                 throw new AppError(401,'Usuario no autenticado')
 
             }
-            const{postId}=_req.params;
-            const{media_url,media_type,position}=_req.body;
+            const{postId}=req.params;
+            const{media_url,media_type,position}=req.body;
 
             const media=await this.postsService.addMedia(postId,user.id,media_url,media_type,position);
 
@@ -286,15 +285,13 @@ export class PostsController
     * DELETE /api/posts/:postId/media/:mediaId
     * Eliminar media de un post
     */
-    deleteMedia=async(_req:Request,res:Response,next:NextFunction):Promise<void>=>
+    deleteMedia=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
     {
 
         try
         {
 
-            const user=(_req as any).user;
-
-            
+            const user=req.user;
 
             if(!user)
             {
@@ -303,7 +300,7 @@ export class PostsController
 
             }
 
-            const{postId}=_req.params
+            const{postId}=req.params
 
             await this.postsService.deletePost(postId,user.id)
 
