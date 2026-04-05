@@ -1,5 +1,7 @@
+import { createServer } from 'http';
 import app from './app';
 import { testConnection } from './config/database';
+import { InicializarSocket } from './socket/socket';
 
 const PORT=process.env.PORT||3000;
 
@@ -23,14 +25,31 @@ const IniciarServidor=async():Promise<void> =>
 
     }
 
-    app.listen(PORT,()=> 
+    //IMPORTANTEEEEEE: crear el servidor HTTP manualmente para que socket.io lo comparta con Express
+    const httpServer=createServer(app)
+
+    //inicializar Socket.io con el servidor HTTP
+    const io=InicializarSocket(httpServer)
+
+    httpServer.listen(PORT,()=> 
     {
+
       console.log('\n ================================');
       console.log(`Servidor corriendo en puerto ${PORT}`);
       console.log(`URL: http://localhost:${PORT}`);
       console.log(`Health check: http://localhost:${PORT}/api/health`);
+      console.log(`Socket.IO: activo`);
       console.log('================================\n');
+
     });
+
+    io.on('connection',()=>
+    {
+
+      const count=io.engine.clientsCount
+      console.log(`Usuarios conectados: ${count}`); 
+
+    })
 
   }catch(error){
 

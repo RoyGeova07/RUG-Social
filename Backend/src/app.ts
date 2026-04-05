@@ -1,16 +1,3 @@
-/**
- * 
- * Hash de contraseñas (bcrypt)
-
-  Generacion de tokens
-
-  Subida de imagenes
-
-  Formateo de fechas
-
-  Validaciones
- * 
- */
 
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
@@ -23,6 +10,7 @@ import postsRoutes from './modules/posts/posts.routes'
 import likesRoutes from './modules/likes/likes.routes'
 import commentsRoutes from './modules/comments/comments.routes'
 import storiesRoutes from './modules/stories/stories.routes'
+import chatRoutes from './modules/chat/Chat.routes'
 
 dotenv.config();
 
@@ -84,6 +72,7 @@ app.get('/',(_req: Request,res:Response)=>
       likes:'/api/likes',
       comments:'/api/comments',
       stories:'/api/stories',
+      chat:'/api/chat',
 
     },
 
@@ -97,6 +86,7 @@ app.use('/api/posts',postsRoutes);
 app.use('/api/likes',likesRoutes);
 app.use('/api/comments',commentsRoutes);
 app.use('/api/stories',storiesRoutes);
+app.use('/api/chat',chatRoutes);
 
 app.use(notFound);
 app.use(ManejarErrorres);

@@ -625,21 +625,34 @@ begin
 		raise exception'El usuario 1 no existe o esta inactivo';
 	end if;
 
-	if not exists(select 1 from users where id=p_user2_id and is_active=true)then
-		raise exception'El usuario 2 no existe o esta inactivo';
+	if p_user1_id<>p_user2_id then
+		if not exists(select 1 from users where id=p_user2_id and is_active=true)then
+			raise exception'El usuario 2 no existe o esta inactivo';
+		end if;
 	end if;
 
-	if p_user1_id=p_user2_id then
-		raise exception'No podes crear char contigo mismo';
+	--se verifica si ya existe chat entre esos 2 usuarios o self-chat
+	if p_user1_id<>p_user2_id then
+
+		--chat privado normal:buscar chat con exactamente esos 2 miembros
+		select c.id into p_chat_id
+		from chats c
+		where c.is_group=false
+		and exists(select 1 from chat_members cm1 where cm1.chat_id=c.id and cm1.user_id=p_user1_id)
+		and exists(select 1 from chat_members cm2 where cm2.chat_id=c.id and cm2.user_id=p_user2_id)
+		and(select count(*)from chat_members where chat_id=c.id)=2;
+
+	else 
+		
+		--self-chat: buscar chat con exactamente 1 miembro (el mismo usuario)
+		select c.id into p_chat_id
+		from chats c
+		where c.is_group=false	
+		and exists(select 1 from chat_members cm1 where cm1.chat_id=c.id and cm1.user_id=p_user1_id)
+		and(select count(*)from chat_members where chat_id=c.id)=1;
+
 	end if;
 
-	--se verifica si ya existe chat entre esos 2 usuarios
-	select c.id into p_chat_id
-	from chats c
-	where c.is_group=false
-	and exists(select 1 from chat_members cm1 where cm1.chat_id=c.id and cm1.user_id=p_user1_id)
-	and exists(select 1 from chat_members cm2 where cm2.chat_id=c.id and cm2.user_id=p_user2_id)
-	and(select count(*)from chat_members where chat_id=c.id)=2;
 
 	--si ya existe, retornar el id del chat existente
 	if p_chat_id is not null then
@@ -650,16 +663,20 @@ begin
 	insert into chats(is_group)values(false)
 	returning id into p_chat_id;
 
-	--insertar ambos usuarios como miembros
+	--insertar user1 siempre	
 	insert into chat_members(chat_id,user_id)values(p_chat_id,p_user1_id);
-    insert into chat_members(chat_id,user_id)values(p_chat_id,p_user2_id);
+
+	--insertar user2 solo si es diferente (no es self-chat)
+	if p_user1_id<>p_user2_id then
+	    insert into chat_members(chat_id,user_id)values(p_chat_id,p_user2_id);
+	end if;
 
 	
 end;
 $$;
 
 
-create or replace procedure sp_crear_chat_grupal(in p_creator_id uuid,in p_member_ids uuid[],out p_chat_id uuid)
+create or replace procedure sp_crear_chat_grupal(in p_creator_id uuid,in p_member_ids uuid[],in p_nombre varchar(100),in p_descripcion text,out p_chat_id uuid)
 language plpgsql
 as $$
 declare 
@@ -670,13 +687,17 @@ begin
         raise exception 'El creador no existe o esta inactivo';
     end if;
 
+	if p_nombre is null or trim(p_nombre)='' then
+		raise exception'El nombre del grupo es requerido';
+	end if;
+
 	--el grupo debe tener al menos 2 miembros, ademas del creador
 	if array_length(p_member_ids,1)<2 then
 		raise exception'Un grupo debe de tener al menos 3 miembros (incluyengo al creador)';
 	end if;
 
-	--crear chat grupal
-	insert into chats(is_group)values(true)
+	--crear chat grupal con nombre y descripcion
+	insert into chats(is_group,nombre,descripcion)values(true,p_nombre,p_descripcion)
 	returning id into p_chat_id;
 	
 	--insertar al creador como miembro
@@ -693,6 +714,27 @@ begin
 		end if;
 	end loop;
 
+end;
+$$;
+
+create or replace procedure sp_actualizar_info_grupo(in p_chat_id uuid,in p_user_id uuid,in p_nombre varchar(100),in p_descripcion text)
+language plpgsql
+as $$
+begin
+	
+	if not exists(select 1 from chats where id=p_chat_id and is_group=true)then
+		raise exception'El chat no existe o no es grupal';
+	end if;
+
+	if not exists(select 1 from chat_members where chat_id=p_chat_id and user_id=p_user_id)then
+		raise exception'No eres miembro de este grupo';
+	end if;
+
+	update chats
+	set 
+		nombre=coalesce(p_nombre,nombre),
+		descripcion=coalesce(p_descripcion,descripcion)
+	where id=p_chat_id;
 end;
 $$;
 
@@ -874,12 +916,15 @@ begin
 end;
 $$;
 
+--lateral join, permite calcular una vez por fila
 create or replace function fn_listar_chats_usuario(p_user_id uuid,p_limit int,p_offset int)
 returns table
 (
 
 	chat_id uuid,
     is_group boolean,
+    nombre_chat varchar,
+    descripcion_chat text,
     otro_user_id uuid,
     otro_username varchar,
     otra_foto_perfil text,
@@ -892,83 +937,92 @@ language plpgsql
 as $$
 begin
 
-	return query
-	select
-		c.id,
-		c.is_group,
-		--si es chat privado,obtener el otro usuario
-		case 
-			when c.is_group=false then
-				(select user_id from chat_members where chat_id=c.id and user_id!=p_user_id
-				limit 1)
-			else null
-		end as otro_user_id,
+return query
+select
+	c.id,
+	c.is_group,
+	--nombre del chat (solo grupos)
+	case 
+		when c.is_group=true then c.nombre
+		else null
+	end as nombre_chat,
 
-		--username del otro usuario (si es privado)
-		case 
-			when c.is_group=false then
-				(select pr.username from chat_members cm
-				inner join profiles pr on pr.user_id=cm.user_id
-				where cm.chat_id=c.id and cm.user_id!=p_user_id
-				limit 1)
-			else 'Grupo'::varchar
-		end as otro_username,
+	--descripcion (solo grupos)
+	case 
+		when c.is_group=true then c.descripcion
+		else null
+	end as descripcion_chat,
+
+	--otro usuario, si es chat privado
+	case
+		when not c.is_group and cm_count.total=2 then u_otro.user_id
+		else null
+	end as otro_user_id,
+
+	--username
+	case 
+		when not c.is_group and cm_count.total=2 then u_otro.username
+		when c.is_group then c.nombre
+		else 'Mis notas'
+	end as otro_username,
 
 		--foto del otro usuario(si es privado)
-		case 
-			when c.is_group=false then
-				(select pr.foto_perfil_url from chat_members cm
-				inner join profiles pr on pr.user_id=cm.user_id
-				where cm.chat_id=c.id and cm.user_id!=p_user_id
-				limit 1)
-			else null
-		end as otra_foto_perfil,
-		
+	case 
+		when not c.is_group and cm_count.total=2 then u_otro.foto_perfil_url
+		else null
+	end as otra_foto_perfil,
 
-		--ultimo mensaje
-		(select 
-			case
-				when m.message_type='texto'then m.contenido_texto
-                when m.message_type='sticker'then'🎭 Sticker'
-                when m.message_type='audio'then'🎵 Audio'
-                when m.message_type='imagen'then'📷 Imagen'
-                when m.message_type='video'then'🎥 Video'
-                else 'Mensaje'
-			end 
-		 from messages m
- 		 where m.chat_id=c.id
-		 order by m.creado_en desc
-		 limit 1
-		 )as ultimo_mensaje,
+	--ultimo mensaje 
+	um.ultimo_mensaje,
+	um.creado_en,
+	
+	--mensajes no leidos
+	coalesce(unread.cantidad,0)
 
-		--fecha del ultimo mensaje
-		(select m.creado_en from messages m	
-		where m.chat_id=c.id
-		order by m.creado_en desc
-		limit 1
-		)as ultimo_mensaje_creado,
-		
-		--contar mensajes no leidos
-		(select count(*)::int from messages m
-		where m.chat_id=c.id
-		and m.remitente_id!=p_user_id
-		and m.is_read=false
-		)as mensajes_no_leidos
+	from chats c
 
-	from chats c	
-	inner join chat_members cm on cm.chat_id=c.id
-	where cm.user_id=p_user_id
-	order by(
-		select m.creado_en from messages m
-		where m.chat_id=c.id
-		order by m.creado_en desc
-		limit 1
-	)desc nulls last
+	--contar miembros
+	left join lateral(select count(*)as total from chat_members cm where cm.chat_id=c.id)cm_count on true
+	
+	--se obtiene el otro usuario 
+	left join lateral(select cm.user_id,pr.username,pr.foto_perfil_url
+					from chat_members cm
+					inner join profiles pr on pr.user_id=cm.user_id
+					where cm.chat_id=c.id and cm.user_id<>p_user_id limit 1)u_otro on not c.is_group
+
+	--ultimo mensaje
+	left join lateral(
+				select 
+					m.creado_en,
+					case 
+						when m.message_type='texto'then m.contenido_texto
+			            when m.message_type='sticker'then'🎭 Sticker'
+			            when m.message_type='audio'then'🎵 Audio'
+			            when m.message_type='imagen'then'📷 Imagen'
+			            when m.message_type='video'then'🎥 Video'
+			            else 'Mensaje'
+					end as ultimo_mensaje
+				from messages m
+				where m.chat_id=c.id
+				order by m.creado_en desc
+				limit 1)um on true
+
+	--mensajes no leidos
+	left join lateral(select count(*)::int as cantidad from messages m where m.chat_id=c.id and m.remitente_id<>p_user_id and m.is_read=false)unread on true
+
+	--validar pertenenciaaaa 
+	where exists(select 1 from chat_members cm where cm.chat_id=c.id and cm.user_id=p_user_id)
+
+	--ordernar por ultimo mensaje
+	order by um.creado_en desc nulls last
+
+
 	limit p_limit
 	offset p_offset;
 
 end;
 $$;
+
 
 
 -----------------------------------------------------TERMINADO CRUD DE CHAT-----------------------------------------------------
@@ -1505,7 +1559,6 @@ begin
     
 end;
 $$;
-
 
 
 

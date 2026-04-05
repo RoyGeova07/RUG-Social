@@ -154,6 +154,10 @@ create table chats
 
 );
 
+alter table chats add column if not exists nombre varchar(100);
+alter table chats add column if not exists descripcion text;
+alter table chats add column created_by uuid;
+
 create table chat_members
 (
 
@@ -237,13 +241,19 @@ create table notifications
 
 --indices necesarios, sin los indices tendria que leer toda la tabla, pero con los indices puedo ir directo al dato
 --en mi red social, sin indices me moriria en el perfomance |si una columna aparece mucho en un where,join o order by -> se necesita indice|
-create index idx_posts_user_id on posts(user_id);
-create index idx_posts_created on posts(creado_en desc);
-create index idx_likes_post_id on likes(post_id);
-create index idx_comment_post_id on comments(post_id);
-create index idx_follows_following on follows(following_id);
-create index idx_messages_chat_id on messages(chat_id);
-create index idx_messages_created on messages(creado_en);
-create index idx_stories_expirado on stories(expirado_en);
-create index idx_notifications_user_unread on notifications(user_id,is_read);
-create index idx_follows_follower on follows(follower_id);
+create index if not exists idx_posts_user_id on posts(user_id);
+create index if not exists idx_posts_created on posts(creado_en desc);
+create index if not exists idx_likes_post_id on likes(post_id);
+create index if not exists idx_comment_post_id on comments(post_id);
+create index if not exists idx_follows_following on follows(following_id);
+create index if not exists idx_messages_chat_id on messages(chat_id);
+create index if not exists idx_messages_created on messages(creado_en);
+create index if not exists idx_stories_expirado on stories(expirado_en);
+create index if not exists idx_notifications_user_unread on notifications(user_id,is_read);
+create index if not exists idx_follows_follower on follows(follower_id);
+--para chatss y mensajes con el fin de mejorar el rendimiento, hastaa ahorita me doy cuenta que los necesito aqui tambien xd
+create index if not exists idx_chat_members_user on chat_members(user_id,chat_id);
+create index if not exists idx_messages_chat_created on messages(chat_id,creado_en desc);
+create index if not exists idx_messages_unread on messages(chat_id,is_read,remitente_id);
+
+
