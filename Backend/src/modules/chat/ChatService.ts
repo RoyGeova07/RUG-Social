@@ -1,5 +1,16 @@
 import { pool } from "../../config/database";
 import { AppError } from "../../middlewares/error.middleware";
+//=====================================================================================================
+//=====================================================================================================
+//=====================================================================================================
+//=====================================================================================================
+//=====================================================================================================
+//ARREGLAR: 'CUANDO SALE ERROR, SIEMPRE EL ENDPONT EJECUTA LA ACCION'
+// ARREGLAR ESOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO 
+//=====================================================================================================
+//=====================================================================================================
+//=====================================================================================================
+//=====================================================================================================
 
 export class ChatService
 {
@@ -209,7 +220,7 @@ export class ChatService
         {
 
             const result=await pool.query('Call sp_enviar_mensaje_texto($1,$2,$3,$4)',[chatId,remitenteId,contenido,null])
-            const mensajeId=result.rows[0]?.p_mensaje_id
+            const mensajeId=result.rows[0]?.p_message_id//otro error por no escribir bien pta
 
             if(!mensajeId)
             {
@@ -217,10 +228,12 @@ export class ChatService
                 throw new AppError(500,'Error al enviar mensaje')
 
             }
-            //return await this.obtener
+            return await this.obtenerMensaje(mensajeId)
 
         }catch(e:any){
 
+            console.error("ERROR REAL:", e);
+            
             if(e instanceof AppError)throw e;
             if(e.message?.includes('no existe'))
             {
@@ -237,6 +250,17 @@ export class ChatService
             throw new AppError(500,'Error al enviar mensaje');
 
         }
+
+    }
+
+    async obtenerNoLeidos(chatId:string,userId:string):Promise<number>
+    {
+
+        const result=await pool.query(`select count(*)::int AS unread_count from messages where chat_id=$1
+            and is_read=false
+            and remitente_id!=$2`,[chatId,userId])
+
+        return result.rows[0].unread_count
 
     }
 
@@ -285,9 +309,9 @@ export class ChatService
 
         try
         {
-
-            const result=await pool.query('Call sp_enviar_sticker($1,$2,$3)',[chatId,remitenteId,stickerId,null])
-            const messageId=result.rows[0]?.p_message_id
+                                                        
+            const result=await pool.query('select sp_enviar_sticker($1,$2,$3)as message_id',[chatId,remitenteId,stickerId])
+            const messageId=result.rows[0]?.message_id
 
             if(!messageId)
             {
@@ -328,12 +352,13 @@ export class ChatService
         try
         {
 
+            //otro error por un parentesis JAJAJAJ fuck
             const result=await pool.query(`select 
                                         m.id,m.chat_id,m.remitente_id,pr.username,pr.foto_perfil_url,m.message_type,m.contenido_texto,mm.media_url,mm.media_type,mm.duracion_segundos,s.sticker_url,m.is_read,m.creado_en
                                         from messages m
                                         inner join profiles pr on pr.user_id=m.remitente_id
                                         left join messages_media mm on mm.message_id=m.id
-                                        left join message_stickers ms on ms.message_id=m.id)
+                                        left join message_stickers ms on ms.message_id=m.id
                                         left join stickers s on s.id=ms.sticker_id
                                         where m.id=$1`,[mensajeId]);
             

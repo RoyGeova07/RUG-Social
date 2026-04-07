@@ -692,9 +692,13 @@ begin
 	end if;
 
 	--el grupo debe tener al menos 2 miembros, ademas del creador
-	if array_length(p_member_ids,1)<2 then
+	if p_member_ids is null or array_length(p_member_ids,1)<2 then
 		raise exception'Un grupo debe de tener al menos 3 miembros (incluyengo al creador)';
 	end if;
+
+	--eliminar duplicados y creador
+	select array_agg(distinct unnest(p_member_ids))into p_member_ids;
+	p_member_ids:=array_remove(p_member_ids,p_creator_id);
 
 	--crear chat grupal con nombre y descripcion
 	insert into chats(is_group,nombre,descripcion)values(true,p_nombre,p_descripcion)
@@ -706,13 +710,19 @@ begin
 	--insertar los demas miembros
 	foreach v_member_id in array p_member_ids
 	loop
-		if exists(select 1 from users where id=v_member_id and is_active=true)then
-			--se evita duplicados, por si el creador se incluyo en el array
-			if not exists(select 1 from chat_members where chat_id=p_chat_id and user_id=v_member_id)then
-				insert into chat_members(chat_id,user_id)values(p_chat_id,v_member_id);
-			end if;
-		end if;
+	
+		if not exists(select 1 from users where id=v_member_id and is_active=true)then
+			raise exception'El usuario % no existe o esta inactivo',v_member_id;
+        end if;
+
+			insert into chat_members(chat_id,user_id)values(p_chat_id,v_member_id);
+
 	end loop;
+
+	--validar total final
+	if(select count(*)from chat_members where chat_id=p_chat_id)<3 then
+		raise exception 'No hay suficientes miembros validos';
+    end if;
 
 end;
 $$;
@@ -738,7 +748,8 @@ begin
 end;
 $$;
 
-create or replace procedure sp_enviar_mensage_texto(in p_chat_id uuid,in p_remitente_id uuid,in p_contenido_texto text,out p_message_id uuid)
+--por no escribir bien mensaje me estuve quemando la cabeza >;(
+create or replace procedure sp_enviar_mensaje_texto(in p_chat_id uuid,in p_remitente_id uuid,in p_contenido_texto text,out p_message_id uuid)
 language plpgsql
 as $$
 begin
@@ -762,9 +773,12 @@ begin
 end;
 $$;
 
-create or replace procedure sp_enviar_sticker(in p_chat_id uuid,in p_remitente_id uuid,in p_sticker_id uuid,out p_message_id uuid)
+create or replace function sp_enviar_sticker(p_chat_id uuid,p_remitente_id uuid,p_sticker_id uuid)
+returns uuid
 language plpgsql
 as $$
+declare 
+	v_message_id uuid;
 begin
 
 	if not exists(select 1 from chats where id=p_chat_id)then
@@ -781,10 +795,12 @@ begin
 
 	--ahora de tipo sticker
 	insert into messages(chat_id,remitente_id,message_type)values(p_chat_id,p_remitente_id,'sticker')
-	returning id into p_message_id;
+	returning id into v_message_id;
 
 	--ahora vincular el sticker al mensaje
-	insert into message_stickers(message_id,sticker_id)values(p_message_id,p_sticker_id);
+	insert into message_stickers(message_id,sticker_id)values(v_message_id,p_sticker_id);
+
+	return v_message_id;
 
 end;
 $$;

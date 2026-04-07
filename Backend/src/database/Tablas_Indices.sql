@@ -257,3 +257,23 @@ create index if not exists idx_messages_chat_created on messages(chat_id,creado_
 create index if not exists idx_messages_unread on messages(chat_id,is_read,remitente_id);
 
 
+--
+--TRUNCATE TABLE 
+--chat_members,
+--chats,
+--comments,
+--follows,
+--likes,
+--message_stickers,
+--messages,
+--messages_media,
+--notifications,
+--post_media,
+--posts,
+--profiles,
+--stickers,
+--stories,
+--user_status,
+--users
+--RESTART IDENTITY CASCADE;
+

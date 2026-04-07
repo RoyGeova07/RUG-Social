@@ -182,18 +182,19 @@ const notificarMiembros=async(io:SocketServer,chatId:string,remitenteId:string,m
 
     try
     {
-
         const socketsEnSala=await io.in(chatId).fetchSockets();
         const idEnSala=new Set(socketsEnSala.map((s:any)=>s.userId));
-
         const{pool}=await import('../../config/database')
         const miembros=await pool.query('select user_id from chat_members where chat_id=$1 and user_id!=$2',[chatId,remitenteId])
+    
 
-        for(const miembro of miembros.rows)
+        await Promise.all(miembros.rows.map(async(miembro)=>
         {
 
+            if(miembro.user_id===remitenteId)return;
             if(!idEnSala.has(miembro.user_id))
             {
+                const unreadCount=await chatService.obtenerNoLeidos(chatId,miembro.user_id)
 
                 io.to(miembro.user_id).emit('new_notification',
                 {
@@ -203,12 +204,16 @@ const notificarMiembros=async(io:SocketServer,chatId:string,remitenteId:string,m
                     remitente:{userId:remitenteId,username:mensaje.username},
                     preview:obtenerPreview(mensaje),
                     creado_en:mensaje.creado_en,
+                    unread_count:unreadCount
+                
 
                 })
 
             }
 
-        }
+
+
+        }))
 
     }catch(e){
 
