@@ -1,5 +1,6 @@
 import { pool } from "../../config/database";
 import { AppError } from "../../middlewares/error.middleware";
+import { withTransaction } from "../../utils/transaction";
 
 export class PostsService
 {
@@ -13,29 +14,36 @@ export class PostsService
         try
         {
 
-            await pool.query('CALL sp_crear_post($1,$2,$3)',[userId,subtitulo||null,null])//el tercer parametro es el out p_post_id
+            return await withTransaction(async(client)=>
+            {
+
+                await client.query('CALL sp_crear_post($1,$2,$3)',[userId,subtitulo||null,null])//el tercer parametro es el out p_post_id
         
-            /**
-             * el out parameter viene en result.rows[0]
-             * pero como es un call, necesito obtener el id de otra forma
-             * voy hacer un query separado para obtener el ultimo post creado
-             */
-            const postResultado=await pool.query(`SELECT 
-                p.id,
-                p.user_id,
-                p.subtitulo,
-                p.creado_en,
-                pr.username,
-                pr.full_name,
-                pr.foto_perfil_url
-                FROM posts p
-                INNER JOIN profiles pr on pr.user_id=p.user_id
-                WHERE p.user_id=$1
-                ORDER BY p.creado_en DESC
-                LIMIT 1`,
-                [userId]
-            );
-            return postResultado.rows[0]
+                /**
+                 * el out parameter viene en result.rows[0]
+                 * pero como es un call, necesito obtener el id de otra forma
+                 * voy hacer un query separado para obtener el ultimo post creado
+                 */
+                const postResultado=await client.query(`SELECT 
+                    p.id,
+                    p.user_id,
+                    p.subtitulo,
+                    p.creado_en,
+                    pr.username,
+                    pr.full_name,
+                    pr.foto_perfil_url
+                    FROM posts p
+                    INNER JOIN profiles pr on pr.user_id=p.user_id
+                    WHERE p.user_id=$1
+                    ORDER BY p.creado_en DESC
+                    LIMIT 1`,
+                    [userId]
+                );
+                return postResultado.rows[0]
+
+            })
+
+            
 
         }catch(error:any){
 
@@ -188,6 +196,48 @@ export class PostsService
         }
 
     }
+
+    async getPostByIdTx(postId:string, client:any):Promise<any>
+    {
+        const db=client;
+
+        const result=await db.query(`
+            SELECT
+                p.id as post_id,
+                p.user_id as autor_id,
+                pr.username,
+                pr.full_name,
+                pr.foto_perfil_url,
+                p.subtitulo,
+                p.creado_en,
+                p.actualizado_en,
+                (SELECT COUNT(*) FROM likes l WHERE l.post_id=p.id) as like_count,
+                (SELECT COUNT(*) FROM comments c WHERE c.post_id=p.id) as comments_count
+            FROM posts p
+            INNER JOIN profiles pr on pr.user_id=p.user_id
+            WHERE p.id=$1
+        `,[postId]);
+
+        if(result.rows.length===0)
+        {
+
+            throw new AppError(404,'Post no encontrado');
+
+        }
+
+        const mediaResult=await db.query(`
+            SELECT id,media_url,media_type,position 
+            FROM post_media 
+            WHERE post_id=$1 
+            ORDER BY position ASC
+        `,[postId]);
+
+        const post=result.rows[0];
+        post.media=mediaResult.rows;
+
+        return post;
+    }
+
     /**
      * editar subtitulo de un post
      */
@@ -197,11 +247,18 @@ export class PostsService
         try
         {
 
-            await pool.query('CALL sp_editar_post_subtitulo($1,$2,$3)',[post_id,user_id,subtitulo]);
+            return await withTransaction(async(client)=>
+            {
 
-            //obtener el post actualizado
-            return await this.getPostById(post_id);
+                await client.query('CALL sp_editar_post_subtitulo($1,$2,$3)',[post_id,user_id,subtitulo]);
 
+                //obtener el post actualizado
+                return await this.getPostById(post_id);
+
+
+            })
+
+            
         }catch(error:any){
 
             if(error.message?.includes('no existe'))
@@ -260,13 +317,19 @@ export class PostsService
         try
         {
 
-            //el stored procedure espera:p_post_id, p_user_id, p_media_url, p_media_type, p_position, OUT p_media_id
-            await pool.query('CALL sp_agregar_post_media($1,$2,$3,$4,$5,$6)',[postId,userId,mediaUrl,mediaType,position||1,null]);
+            return await withTransaction(async(client)=>
+            {
 
-            //obtener la media q recien se creooo
-            const mediaResult=await pool.query(`SELECT id,post_id,media_url,media_type,position FROM post_media WHERE post_id=$1 AND media_url=$2 ORDER BY id DESC LIMIT 1`,[postId,mediaUrl]);
+                
+                await client.query('CALL sp_agregar_post_media($1,$2,$3,$4,$5,$6)',[postId,userId,mediaUrl,mediaType,position||1,null]);
 
-            return mediaResult.rows[0]
+                //obtener la media q recien se creooo
+                const mediaResult=await client.query(`SELECT id,post_id,media_url,media_type,position FROM post_media WHERE post_id=$1 AND media_url=$2 ORDER BY id DESC LIMIT 1`,[postId,mediaUrl]);
+
+                return mediaResult.rows[0]
+
+            })
+
 
         }catch(error:any){
 
@@ -287,6 +350,45 @@ export class PostsService
         }
 
     }
+
+    //funcion para crear un post junto imagen y video en un solo post
+    async createPostFull(userId:string,data:any)
+    {
+
+        return await withTransaction(async(cliente)=>
+        {
+
+            const{subtitulo,media}=data
+
+            const postResult=await cliente.query('call sp_crear_post($1,$2,$3)',[userId,subtitulo||null,null])
+            const postId=postResult.rows[0]?.p_post_id
+            if(!postId)
+            {
+
+                throw new AppError(500,'Error al crear post')
+
+            }
+            //si hay media, toca insertarla todas
+            if(media&&media.length>0)
+            {
+
+                for(let i=0;i<media.length;i++)
+                {
+
+                    const m=media[i]
+                    await cliente.query('call sp_agregar_post_media($1,$2,$3,$4,$5,$6)',[postId,userId,m.mediaUrl,m.mediaType,i+1,null])
+                    
+                }
+
+            }
+            //devolver post completo
+            return await this.getPostByIdTx(postId,cliente)
+            
+
+        })
+
+    }
+
     /**
      * eliminar media de un post 
      */
@@ -296,24 +398,30 @@ export class PostsService
         try
         {
 
-            //aqui se verifica que la media pertenece al post
-            const Chekeo_De_media=await pool.query('SELECT post_id FROM post_media WHERE id=$1',[mediaId]);
-
-            if(Chekeo_De_media.rows.length===0)
+            return await withTransaction(async(client)=>
             {
 
-                throw new AppError(404,'Media no encontrada')
+                //aqui se verifica que la media pertenece al post
+                const Chekeo_De_media=await client.query('SELECT post_id FROM post_media WHERE id=$1',[mediaId]);
 
-            }
-            if(Chekeo_De_media.rows[0].post_id!==postId)
-            {
+                if(Chekeo_De_media.rows.length===0)
+                {
 
-                throw new AppError(400,'La media no pertenece a este post')
+                    throw new AppError(404,'Media no encontrada')
 
-            }
+                }
+                if(Chekeo_De_media.rows[0].post_id!==postId)
+                {
 
-            await pool.query('CALL sp_eliminar_post_media($1,$2)',[mediaId,userId]);
+                    throw new AppError(400,'La media no pertenece a este post')
 
+                }
+
+                await client.query('CALL sp_eliminar_post_media($1,$2)',[mediaId,userId]);
+
+            })
+
+           
         }catch(error:any){
 
             if(error instanceof AppError)

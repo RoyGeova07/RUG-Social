@@ -1,5 +1,6 @@
 import { pool } from "../../config/database";
 import { AppError } from "../../middlewares/error.middleware";
+import { withTransaction } from "../../utils/transaction";
 
 export class CommentsService
 {
@@ -13,25 +14,31 @@ export class CommentsService
         try
         {
 
-            await pool.query('CALL sp_crear_comentario($1,$2,$3)',[userId,postId,contenido]);
-            //obtener el comentario recien creado
-            const result=await pool.query(
-                `SELECT
-                    c.id,
-                    c.post_id,
-                    c.user_id,
-                    c.contenido,
-                    c.creado_en,
-                    pr.username,
-                    pr.full_name,
-                    pr.foto_perfil_url
-                FROM comments c
-                INNER JOIN profiles pr on pr.user_id=c.user_id
-                WHERE c.user_id=$1 AND c.post_id=$2
-                ORDER BY c.creado_en DESC
-                LIMIT 1`,[userId,postId]);
+            return await withTransaction(async(cliente)=>
+            {
 
-            return result.rows[0]
+                await cliente.query('CALL sp_crear_comentario($1,$2,$3)',[userId,postId,contenido]);
+                //obtener el comentario recien creado
+                const result=await cliente.query(
+                    `SELECT
+                        c.id,
+                        c.post_id,
+                        c.user_id,
+                        c.contenido,
+                        c.creado_en,
+                        pr.username,
+                        pr.full_name,
+                        pr.foto_perfil_url
+                    FROM comments c
+                    INNER JOIN profiles pr on pr.user_id=c.user_id
+                    WHERE c.user_id=$1 AND c.post_id=$2
+                    ORDER BY c.creado_en DESC
+                    LIMIT 1`,[userId,postId]);
+
+                return result.rows[0]
+
+            })
+
             
         }catch(error:any){
 
@@ -137,8 +144,14 @@ export class CommentsService
         try
         {
 
-            await pool.query('CALL sp_borrar_comentario($1,$2)',[commentId,userId])
+            return await withTransaction(async(client)=>
+            {
 
+                await client.query('CALL sp_borrar_comentario($1,$2)',[commentId,userId])
+
+            })
+
+            
         }catch(error:any){
 
             if(error.message?.includes('no existe'))

@@ -1,5 +1,6 @@
 import { pool } from "../../config/database";
 import { AppError } from "../../middlewares/error.middleware";
+import { withTransaction } from "../../utils/transaction";
 
 export class StoriesService
 {
@@ -13,28 +14,35 @@ export class StoriesService
         try
         {
 
-            await pool.query('CALL sp_crear_story($1,$2,$3)',[userId,mediaUrl,mediaType])
+            return await withTransaction(async(client)=>
+            {
 
-            //aqui se obtiene la story recien creada 
-            const result=await pool.query(
-                `SELECT 
-                    s.id,
-                    s.user_id,
-                    s.media_url,
-                    s.media_type,
-                    s.creado_en,
-                    s.expirado_en,
-                    pr.username,
-                    pr.full_name,
-                    pr.foto_perfil_url
-                FROM stories s
-                INNER JOIN profiles pr ON pr.user_id=s.user_id
-                WHERE s.user_id=$1
-                ORDER BY s.creado_en DESC
-                LIMIT 1`,
-                [userId]
-            )
-            return result.rows[0];
+                await client.query('CALL sp_crear_story($1,$2,$3,$4)',[userId,mediaUrl,mediaType,null])
+
+                //aqui se obtiene la story recien creada 
+                const result=await client.query(
+                    `SELECT 
+                        s.id,
+                        s.user_id,
+                        s.media_url,
+                        s.media_type,
+                        s.creado_en,
+                        s.expirado_en,
+                        pr.username,
+                        pr.full_name,
+                        pr.foto_perfil_url
+                    FROM stories s
+                    INNER JOIN profiles pr ON pr.user_id=s.user_id
+                    WHERE s.user_id=$1
+                    ORDER BY s.creado_en DESC
+                    LIMIT 1`,
+                    [userId]
+                )
+                return result.rows[0];
+
+            })
+
+
 
 
         }catch(error:any){
@@ -185,6 +193,67 @@ export class StoriesService
 
             console.log(error)
             throw new AppError(500,'Error al obtener tus stories')
+
+        }
+
+    }
+
+    //-----------------------------VISTA DE STORIES-------------------------------------------------
+    /**
+     * Registrar que un usuario vio una story
+     * Si ya la habia visto, incrementa el contador de veces_visto
+     * El autor no cuenta como vista de su propia story
+     */
+    async registrarVista(storyId:string,viewerId:string):Promise<void>
+    {
+
+        try
+        {
+
+            await pool.query('call sp_registrar_vista_story($1,$2)',[viewerId,storyId])
+
+        }catch(e:any){
+
+            if(e.message?.includes('no existe'))throw new AppError(404,'Story no encontrada');
+            if(e.message?.includes('ha expirado'))throw new AppError(410,'La story ha expirado');
+            throw new AppError(500,'Error al registrar vista');
+
+        }
+
+    }
+
+    /**
+     * Listar quien vio una story con resumen de estadisticas
+     * Solo el autor puede ver esto
+     * Retorna: resumen (total viewers, total vistas) + lista de viewers paginada
+     */
+    async listarVistas(storyId:string,userId:string,page:number=1,limit:number=100):Promise<any>
+    {
+
+        try
+        {
+
+            const offset=(page-1)*limit
+            const viewsResult=await pool.query('select*from fn_listar_vistas_story($1,$2,$3,$4)',[storyId,userId,limit,offset])
+            const resumenResult=await pool.query('select*from fn_resumen_vistas_story($1,$2)',[storyId,userId])
+            const countResult=await pool.query('select count(*)from story_views where story_id=$1',[storyId])
+
+            const total=parseInt(countResult.rows[0].count)
+            const totalPages=Math.ceil(total/limit)
+
+            return{
+
+                resumen:resumenResult.rows[0],
+                viewers:viewsResult.rows,
+                pagination:{page,limit,total,totalPages},
+
+            }
+
+        }catch(e:any){
+
+            if(e.message?.includes('no existe'))throw new AppError(404,'Story no encontrada');
+            if(e.message?.includes('Solo el autor'))throw new AppError(403,'Solo el autor puede ver las vistas de su story');
+            throw new AppError(500,'Error al obtener vistas');
 
         }
 

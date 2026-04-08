@@ -22,3 +22,8 @@ create trigger trg_posts_actualizado
 before update on posts
 for each row
 execute function fn_set_actualizado_en();
+
+--insertare un sticker random en la tabla, ya que no tengo xd
+INSERT INTO stickers(name, sticker_url, category)
+VALUES('Feliz', 'https://media.giphy.com/media/3o7TKtnuHOHHUjR38Y/giphy.gif', 'emociones')
+RETURNING id;

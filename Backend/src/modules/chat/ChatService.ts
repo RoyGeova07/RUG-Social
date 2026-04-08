@@ -1,5 +1,6 @@
 import { pool } from "../../config/database";
 import { AppError } from "../../middlewares/error.middleware";
+import { withTransaction } from "../../utils/transaction";
 //=====================================================================================================
 //=====================================================================================================
 //=====================================================================================================
@@ -26,19 +27,24 @@ export class ChatService
 
         try
         {
-
-            const result=await pool.query('Call sp_crear_chat_privado($1,$2,$3)',[user1Id,user2Id,null])
-
-            const chatId=result.rows[0]?.p_chat_id
-
-            if(!chatId)
+            return await withTransaction(async(client)=>
             {
 
-                throw new AppError(500,'Error al crear chat privado')
+                const result=await client.query('Call sp_crear_chat_privado($1,$2,$3)',[user1Id,user2Id,null])
 
-            }
-            //return await this.obtenerChatPorId(chatId,user1Id)
+                const chatId=result.rows[0]?.p_chat_id
 
+                if(!chatId)
+                {
+
+                    throw new AppError(500,'Error al crear chat privado')
+
+                }
+                return await this.obtenerInfoChat(chatId,user1Id,client)
+
+
+            })
+           
         }catch(e:any){
 
             if(e instanceof AppError)throw e
@@ -63,17 +69,24 @@ export class ChatService
         try
         {
 
-            const result=await pool.query('Call sp_crear_chat_grupal($1,$2,$3,$4,$5)',[creatorId,memberIds,nombre,descripcion||null,null])
-
-            const chatId=result.rows[0]?.p_chat_id
-
-            if(!chatId)
+            return await withTransaction(async(client)=>
             {
 
-                throw new AppError(500,'Error al crear chat grupal')
+                const result=await client.query('Call sp_crear_chat_grupal($1,$2,$3,$4,$5)',[creatorId,memberIds,nombre,descripcion||null,null])
 
-            }
-            return await this.obtenerInfoChat(chatId,creatorId)
+                const chatId=result.rows[0]?.p_chat_id
+
+                if(!chatId)
+                {
+
+                    throw new AppError(500,'Error al crear chat grupal')
+
+                }
+                return await this.obtenerInfoChat(chatId,creatorId,client)    
+
+            })
+
+            
 
         }catch(e:any){
 
@@ -108,7 +121,13 @@ export class ChatService
         try
         {
 
-            await pool.query('Call sp_actualizar_info_grupo($1,$2,$3,$4)',[chatId,userId,nombre,descripcion||null])
+            return await withTransaction(async(client)=>
+            {
+
+                await client.query('Call sp_actualizar_info_grupo($1,$2,$3,$4)',[chatId,userId,nombre,descripcion||null])
+
+            })
+
 
         }catch(e:any){
 
@@ -126,13 +145,14 @@ export class ChatService
         }
 
     }
-    async obtenerInfoChat(chatId:string,userId:string):Promise<any>
+    async obtenerInfoChat(chatId:string,userId:string,client?:any):Promise<any>
     {
 
+        const db=client||pool
         try
         {
 
-            const result=await pool.query(`select c.id,c.nombre,c.descripcion,c.creado_en,
+            const result=await db.query(`select c.id,c.nombre,c.descripcion,c.creado_en,c.is_group,
                 (select count(*)from chat_members where chat_id=c.id)::int 
                 as miembros_count from chats c where c.id=$1`,[chatId])
 
@@ -148,10 +168,10 @@ export class ChatService
             if(!chat.is_group&&chat.miembros_count===2)
             {
 
-                const otroUsuario=await pool.query(`select u.id,pr.username,pr.full_name,pr.avatar_url,us.status
+                const otroUsuario=await db.query(`select u.id,pr.username,pr.full_name,pr.foto_perfil_url,us.status
                                                 from chat_members cm
                                                 inner join users u on u.id=cm.user_id
-                                                inner join user_profiles pr on pr.user_id=u.id
+                                                inner join profiles pr on pr.user_id=u.id
                                                 left join user_status us on us.user_id=u.id
                                                 where cm.chat_id=$1 and cm.user_id!=$2
                                                 limit 1`,[chatId,userId]);
@@ -219,16 +239,22 @@ export class ChatService
         try
         {
 
-            const result=await pool.query('Call sp_enviar_mensaje_texto($1,$2,$3,$4)',[chatId,remitenteId,contenido,null])
-            const mensajeId=result.rows[0]?.p_message_id//otro error por no escribir bien pta
-
-            if(!mensajeId)
+            return await withTransaction(async(client)=>
             {
 
-                throw new AppError(500,'Error al enviar mensaje')
+                const result=await client.query('Call sp_enviar_mensaje_texto($1,$2,$3,$4)',[chatId,remitenteId,contenido,null])
+                const mensajeId=result.rows[0]?.p_message_id//otro error por no escribir bien pta
 
-            }
-            return await this.obtenerMensaje(mensajeId)
+                if(!mensajeId)
+                {
+
+                    throw new AppError(500,'Error al enviar mensaje')
+
+                }
+                return await this.obtenerMensaje(mensajeId,client)
+
+            })
+
 
         }catch(e:any){
 
@@ -275,16 +301,21 @@ export class ChatService
        try
        {
 
-            const result=await pool.query('Call sp_enviar_mensaje_media($1,$2,$3,$4,$5,$6)',[chatId,remitenteId,mediaUrl,mediaType,duracionSegundo||null,null])
-            const messageId=result.rows[0]?.p_message_id
-
-            if(!messageId)
+            return await withTransaction(async(client)=>
             {
 
-                throw new AppError(500,'Error al enviar mensaje de media')
+                const result=await client.query('Call sp_enviar_mensaje_media($1,$2,$3,$4,$5,$6)',[chatId,remitenteId,mediaUrl,mediaType,duracionSegundo||null,null])
+                const messageId=result.rows[0]?.p_message_id
 
-            }
-            return await this.obtenerMensaje(messageId)
+                if(!messageId)
+                {
+
+                    throw new AppError(500,'Error al enviar mensaje de media')
+
+                }
+                return await this.obtenerMensaje(messageId,client)
+
+            })
 
         }catch(e:any){
 
@@ -309,17 +340,24 @@ export class ChatService
 
         try
         {
-                                                        
-            const result=await pool.query('select sp_enviar_sticker($1,$2,$3)as message_id',[chatId,remitenteId,stickerId])
-            const messageId=result.rows[0]?.message_id
-
-            if(!messageId)
+                               
+            return await withTransaction(async(client)=>
             {
 
-                throw new AppError(500,'Error al enviar sticker')
+                const result=await client.query('select sp_enviar_sticker($1,$2,$3)as message_id',[chatId,remitenteId,stickerId])
+                const messageId=result.rows[0]?.message_id
 
-            }
-            return await this.obtenerMensaje(messageId)
+                if(!messageId)
+                {
+
+                    throw new AppError(500,'Error al enviar sticker')
+
+                }
+                return await this.obtenerMensaje(messageId,client)
+
+            })
+
+            
 
         }catch(e:any){
 
@@ -346,14 +384,16 @@ export class ChatService
      * Obtener un mensaje completo por ID
      * Se usa internamente despues de insertar para retornar el mensaje completo
      */
-    async obtenerMensaje(mensajeId:string):Promise<any>
+    async obtenerMensaje(mensajeId:string,client?:any):Promise<any>
     {
+
+        const db=client||pool
 
         try
         {
 
             //otro error por un parentesis JAJAJAJ fuck
-            const result=await pool.query(`select 
+            const result=await db.query(`select 
                                         m.id,m.chat_id,m.remitente_id,pr.username,pr.foto_perfil_url,m.message_type,m.contenido_texto,mm.media_url,mm.media_type,mm.duracion_segundos,s.sticker_url,m.is_read,m.creado_en
                                         from messages m
                                         inner join profiles pr on pr.user_id=m.remitente_id

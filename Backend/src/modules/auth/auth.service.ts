@@ -3,6 +3,7 @@ import { hashPassword,comparePassword } from '../../utils/bcrypt';
 import { GenerarToken } from '../../utils/jwt';
 import { AppError } from '../../middlewares/error.middleware';
 import { CreateUser,Login } from '../../types/model';
+import { withTransaction } from '../../utils/transaction';
 
 export class AuthService
 {
@@ -28,50 +29,51 @@ export class AuthService
         try
         {
 
-            //hashear contra
-            const password_hash=await hashPassword(password);
-
-            //llamar stores procedure
-            //sp_crear_usuario(email, password_hash, username, full_name, nacimiento)
-            await pool.query('CALL sp_crear_usuario($1,$2,$3,$4,$5)',[email,password_hash,username,full_name,nacimiento]);
-
-            //obtener el usuario recien creado
-            const resultado=await pool.query('SELECT*FROM sp_consultar_usuario($1)',[username]);
-
-            if(resultado.rows.length===0)
+            return await withTransaction(async(client)=>
             {
 
-                throw new AppError(500,'Error al crear usuario');
+                //hashear contra
+                const password_hash=await hashPassword(password);
+                await client.query('CALL sp_crear_usuario($1,$2,$3,$4,$5)',[email,password_hash,username,full_name,nacimiento]);
+                //obtener el usuario recien creado
+                const resultado=await client.query( 'SELECT *FROM sp_consultar_usuario($1)',[username]);
 
-            }
-            const user=resultado.rows[0];
-
-            //generar token JWT
-            const token=GenerarToken
-            ({
-
-                id:user.user_id,
-                email:user.email,
-                username:user.username,
-
-            });
-
-            return{
-
-                token,
-                user:
+                if(resultado.rows.length===0)
                 {
+
+                    throw new AppError(500,'Error al crear usuario');
+
+                }
+                const user=resultado.rows[0];
+
+                //generar token JWT
+                const token=GenerarToken
+                ({
 
                     id:user.user_id,
                     email:user.email,
                     username:user.username,
-                    full_name:user.full_name,
-                    foto_perfil_url:user.foto_perfil_url,
 
-                },
+                });
 
-            };
+                return{
 
+                    token,
+                    user:
+                    {
+
+                        id:user.user_id,
+                        email:user.email,
+                        username:user.username,
+                        full_name:user.full_name,
+                        foto_perfil_url:user.foto_perfil_url,
+
+                    },
+
+                };
+
+            })
+          
         }catch(error:any){
 
             //para manejar errores especificos 
@@ -81,7 +83,7 @@ export class AuthService
                 throw new AppError(400,'El correo ya esta registrado');
 
             }
-            if(error.message?.includes('Nombre de usuarioya existe'))
+            if(error.message?.includes('Nombre de usuario ya existe'))
             {
 
                 throw new AppError(400,'El nombre de usuario ya existe');

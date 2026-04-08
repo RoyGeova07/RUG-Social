@@ -243,6 +243,27 @@ export class PostsController
     * POST /api/posts/:postId/media
     * Agregar media a un post
     */
+    createPostFull=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
+    {
+
+        try
+        {
+
+            const user=req.user
+            if(!user)
+            {
+
+                throw new AppError(401,'Usuario no autenticado')
+
+            }
+            const result=await this.postsService.createPostFull(user.id,req.body)
+            const response:ApiResponse={success:true,message:'Post con media creado exitosamente',data:result,timestamp:new Date().toISOString(),}
+            res.status(201).json(response)
+
+        }catch(e){next(e)}
+
+    }
+
    addMedia=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
    {
 

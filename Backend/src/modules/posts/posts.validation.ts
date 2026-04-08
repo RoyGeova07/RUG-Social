@@ -82,3 +82,16 @@ export const deleteMediaValidation=
     param('mediaId').isUUID().withMessage('ID de media invalido'),
 
 ]
+
+export const createPostFullValidation=
+[
+
+    body('subtitulo').optional().isLength({ max: 2200 }),
+
+    body('media').optional().isArray().withMessage('Media debe ser un arreglo'),
+
+    body('media.*.mediaUrl').optional().isURL().withMessage('URL invalida'),
+
+    body('media.*.mediaType').optional().isIn(['imagen','video']).withMessage('Tipo invalido'),
+
+]

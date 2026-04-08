@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { StoriesController } from "./stories.controller";
-import { createStoryValidation,deleteStoryValidation } from "./stories.validation";
+import { createStoryValidation,deleteStoryValidation, listarVistasValidation, storyViewValidation } from "./stories.validation";
 import { validar } from "../../middlewares/validation.middleware";
 import { authenticate } from "../../middlewares/auth.middleware";
 
@@ -14,16 +14,30 @@ const storiesController=new StoriesController();
 router.post('/',authenticate,validar(createStoryValidation),storiesController.createStory)
 
 /**
+ * GET /api/stories/me
+ * Mis stories activas (requiere autenticacion)
+ * VA ANTES de /:storyId para evitar conflictos de rutas
+ */
+router.get('/me',authenticate,storiesController.getMyStories)
+
+/**
  * GET /api/stories
  * Ver feed de stories (requiere autenticacion)
  */
 router.get('/',authenticate,storiesController.getStoriesFeed)
 
 /**
- * GET /api/stories/me
- * Ver mis propias stories (requiere autenticacion)
+ * POST /api/stories/:storyId/view
+ * Registrar vista de una story (requiere autenticacion)
+ * Se llama cada vez que el frontend muestra la story al usuario
  */
-router.get('/me',authenticate,storiesController.getMyStories)
+router.post('/:storyId/view',authenticate,validar(storyViewValidation),storiesController.registrarVista)
+
+/**
+ * GET /api/stories/:storyId/views
+ * Ver quien vio mi story (requiere autenticacion, solo el autor)
+ */
+router.get('/:storyId/views',authenticate,validar(listarVistasValidation),storiesController.listarVista)
 
 /**
  * DELETE /api/stories/:storyId

@@ -55,4 +55,10 @@ router.put('/:postId',authenticate,validar(updatePostValidation),postsController
  */
 router.delete('/:postId',authenticate,validar(postIdValidation),postsController.deletePost)
 
+/**
+ * POST /api/posts/full
+ * Crear post con media 
+*/
+router.post('/full',authenticate,validar(createPostValidation),postsController.createPostFull)
+
 export default router;

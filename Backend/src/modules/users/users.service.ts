@@ -98,7 +98,7 @@ export class UsersService
 
             const{full_name,bio,foto_perfil_url,nacimiento}=data
 
-            //aqui construir query diaámicamente solo con los campos proporcionados
+            //aqui construir query dinamicamente solo con los campos proporcionados
             const updates:string[]=[];
             const values:any[]=[]
             let paramCounter=1
@@ -179,7 +179,7 @@ export class UsersService
 
         }catch(error:any){
 
-            if(error.message?.includes('Ya sigue'))
+            if(error.message?.toLowerCase().includes('ya sigue'))
             {
 
                 throw new AppError(400,'Ya sigues a este usuario')

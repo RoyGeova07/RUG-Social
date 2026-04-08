@@ -89,6 +89,7 @@ create table posts
 
 );
 
+
 create table post_media
 (
 
@@ -98,9 +99,17 @@ create table post_media
 	media_type varchar(20)not null, --imagen o video chele?
 	position int default 1,
 	
-	constraint fk_media_post foreign key(post_id)references posts(id)on delete cascade
+	constraint fk_media_post foreign key(post_id)references posts(id)on delete cascade,
+	
+	constraint chk_media_type check(media_type in('imagen','video')),
+	
+	constraint chk_position_positive check(position>0)
+	
 
 );
+
+create unique index if not exists idx_post_media_position
+on post_media(post_id, position);
 
 create table likes
 (
@@ -238,6 +247,31 @@ create table notifications
 
 );
 
+/*
+ * story_views: registra cada vez que un usuario ve una story
+ * - viewer_id: quien vio la story
+ * - story_id: cual story vio
+ * - veces_visto: cuantas veces la vio (se incrementa cada vez)
+ * - primera_vez: cuando la vio por primera vez
+ * - ultima_vez: la ultima vez que la vio
+ *
+ * primary key(viewer_id, story_id) garantiza que no haya duplicados por usuario/story
+ * solo se actualiza el contador y la fecha si ya existe
+ */
+create table if not exists story_views
+(
+
+	viewer_id uuid not null,
+	story_id uuid not null,
+	veces_visto int default 1,
+	primera_vez timestamp default current_timestamp,
+	ultima_vez timestamp default current_timestamp,
+	
+	primary key(viewer_id,story_id),
+	constraint fk_view_viewer foreign key(viewer_id)references users(id)on delete cascade,
+	constraint fk_view_story foreign key(story_id)references stories(id)on delete cascade 
+
+)
 
 --indices necesarios, sin los indices tendria que leer toda la tabla, pero con los indices puedo ir directo al dato
 --en mi red social, sin indices me moriria en el perfomance |si una columna aparece mucho en un where,join o order by -> se necesita indice|
@@ -255,25 +289,28 @@ create index if not exists idx_follows_follower on follows(follower_id);
 create index if not exists idx_chat_members_user on chat_members(user_id,chat_id);
 create index if not exists idx_messages_chat_created on messages(chat_id,creado_en desc);
 create index if not exists idx_messages_unread on messages(chat_id,is_read,remitente_id);
+--para buscar rapido todas las vistas de una story especifica
+create index if not exists idx_story_views_story on story_views(story_id);
+--para buscar las stories que vio un usuario
+create index if not exists idx_story_views_viewer on story_views(viewer_id);
 
 
---
---TRUNCATE TABLE 
---chat_members,
---chats,
---comments,
---follows,
---likes,
---message_stickers,
---messages,
---messages_media,
---notifications,
---post_media,
---posts,
---profiles,
---stickers,
---stories,
---user_status,
---users
---RESTART IDENTITY CASCADE;
+TRUNCATE TABLE 
+chat_members,
+chats,
+comments,
+follows,
+likes,
+message_stickers,
+messages,
+messages_media,
+notifications,
+post_media,
+posts,
+profiles,
+stickers,
+stories,
+user_status,
+users
+RESTART IDENTITY CASCADE;
 

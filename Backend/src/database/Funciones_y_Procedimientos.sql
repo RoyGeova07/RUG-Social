@@ -427,6 +427,23 @@ end;
 $$;
 
 -----------------------------------------------------INICIO DE FOLLOWS-----------------------------------------------------
+
+--DA PEREZA, SI SE VE EL ERROR EN EL FRONT LO ARREGLO:
+/*
+ * 
+ * 
+ * SOLUCION: ALTER TABLE follows ADD CONSTRAINT unique_follow UNIQUE(follower_id, following_id);
+ * 
+ *	 if(error.code === '23505') 
+ *   {
+ * 
+		  throw new AppError(400,'Ya sigues a este usuario');
+		  
+	 }
+ * 
+ * 
+ */
+
 create or replace procedure sp_seguir_usuario(in p_follower_id uuid,in p_following_id uuid)
 language plpgsql
 as $$
@@ -535,7 +552,7 @@ $$;
 -----------------------------------------------------TERMINADO FOLLOWS-----------------------------------------------------
 
 -----------------------------------------------------INICIO CRUD DE STORIES-----------------------------------------------------
-create or replace procedure sp_crear_story(in p_user_id uuid,in p_media_url text,in p_media_type varchar(40))
+create or replace procedure sp_crear_story(in p_user_id uuid,in p_media_url text,in p_media_type varchar(40),out p_story_id uuid)
 language plpgsql
 as $$
 begin
@@ -545,7 +562,8 @@ begin
 	end if;
 
 	--insertar historia con expiracion de 24 horas
-	insert into stories(user_id,media_url,media_type,expirado_en)values(p_user_id,p_media_url,p_media_type,current_timestamp+interval'24 HOURS');
+	insert into stories(user_id,media_url,media_type,expirado_en)values(p_user_id,p_media_url,p_media_type,current_timestamp+interval'24 HOURS')
+	returning id into p_story_id;
 
 end;
 $$;
@@ -1197,7 +1215,23 @@ $$;
  * al quitar like, borrar like
  */
 
+--DA PEREZA, SI SE VE EL ERROR EN EL FRONT LO ARREGLO:
+/*
+ * Si dos requests llegan al mismo tiempo:
 
+	ambos pasan el exists
+	ambos insertan
+	 duplicado
+	 
+	 SOLUCION: 
+	 ALTER TABLE likes ADD CONSTRAINT unique_like UNIQUE(user_id, post_id);
+
+	if(error.code === '23505') 
+	{
+	  throw new AppError(400,'Ya diste like a este post');
+	}
+	 
+ */
 create or replace procedure sp_dar_like(in p_user_id uuid,in p_post_id uuid)
 language plpgsql
 as $$
@@ -1573,6 +1607,146 @@ begin
     order by s.creado_en desc
     limit p_limit;
     
+end;
+$$;
+-----------------------------------------------------TERMINADO CRUD DE STICKERS-----------------------------------------------------
+
+-----------------------------------------------------INICIO CRUD DE STORY VIEWS-----------------------------------------------------
+/*
+ * sp_registrar_vista_story:
+ * - Si el usuario nunca habia visto la story: inserta con veces_visto=1
+ * - Si ya la habia visto: incrementa veces_visto y actualiza ultima_vez
+ * - El autor no puede verse a si mismo (no registra su propia vista)
+ * - Solo registra vistas de stories que no han expirado
+ */
+create or replace procedure sp_registrar_vista_story(in p_viewer_id uuid,in p_story_id uuid)
+language plpgsql
+as $$
+declare 
+	v_autor_id uuid;
+	v_expirado_en timestamp;
+begin
+	
+	--obtener autor y fecha de expiracion de la story
+	select user_id,expirado_en into v_autor_id,v_expirado_en
+	from stories where id=p_story_id;
+
+	if v_autor_id is null then 
+		raise exception'La story no existe';
+	end if;
+
+	--el autor no cuenta como vista de su propia story
+	if v_autor_id=p_viewer_id then
+		return;
+	end if;
+
+	--si ya lo vio: incrementar contador
+	--si es la primera vez: insertar
+	insert into story_views(viewer_id,story_id,veces_visto,primera_vez,ultima_vez)values(p_viewer_id,p_story_id,1,current_timestamp,current_timestamp)
+	on conflict(viewer_id,story_id)do update set
+		veces_visto=story_views.veces_visto+1,
+		ultima_vez=current_timestamp;
+
+exception when others then
+		raise exception'Error al registrar vista: %',sqlerrm;
+	
+end;
+$$;
+
+/*
+ * fn_listar_vistas_story:
+ * - Solo el autor de la story puede ver quien la vio
+ * - Retorna: quien vio, foto, username, cuantas veces, primera y ultima vez
+ * - Ordenado por ultima_vez desc (los mas recientes primero)
+ */
+create or replace function fn_listar_vistas_story(p_story_id uuid,p_user_id uuid,p_limit int default 50,p_offset int default 0)
+returns table
+(
+
+	viewer_id uuid,
+	username varchar,
+	full_name varchar,
+	foto_perfil_url text,
+	veces_visto int,
+	primera_vez timestamp,
+	ultima_vez timestamp
+
+)
+language plpgsql
+as $$
+declare
+	v_autor_id uuid;
+begin	
+	
+	--se verifica si la story existe
+	select user_id into v_autor_id
+	from stories where id=p_story_id;
+
+	if v_autor_id is null then
+		raise exception'La story no existe';
+	end if;
+
+	--solo el autor vera quien vio su story
+	if v_autor_id<>p_user_id then
+		raise exception'Solo el autor puede ver las rutas de su story';
+	end if;
+
+	return query
+	select 
+		sv.viewer_id,
+		pr.username,
+		pr.full_name,
+		pr.foto_perfil_url,
+		sv.veces_visto,
+		sv.primera_vez,
+		sv.ultima_vez
+	from story_views sv
+	inner join profiles pr on pr.user_id=sv.viewer_id
+	where sv.story_id=p_story_id
+	order by sv.ultima_vez desc
+	limit p_limit
+	offset p_offset;
+
+end;
+$$;
+
+/*
+ * fn_resumen_vistas_story:
+ * - Retorna el total de personas unicas que vieron la story
+ * - y el total de veces que fue vista en total
+ */
+create or replace function fn_resumen_vistas_story(p_story_id uuid,p_user_id uuid)
+returns table
+(
+
+	tota_viewers int,--personas unicas q vieron la history
+	total_vistas int --suma total de todas las veces que fue vista
+
+)
+language plpgsql
+as $$
+declare 
+	v_autor_id uuid;
+begin
+	
+	select user_id into v_autor_id
+	from stories
+	where id=p_story_id;
+
+	if v_autor_id is null then
+		raise exception'La story no existe';
+	end if;
+	
+	if v_autor_id<>p_user_id then
+		raise exception'Solo el autor puede ver las estadisticas de su story';
+	end if;
+
+	return query
+	select
+		count(*)::int as total_viewers,
+		coalesce(sum(sv.veces_visto),0)::int as total_visitas
+	from story_views sv where sv.story_id=p_story_id;
+
 end;
 $$;
 

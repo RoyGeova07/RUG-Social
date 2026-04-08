@@ -161,4 +161,55 @@ export class StoriesController
 
     }
 
+    //---------------------------------------VISTAS-----------------------------------------------------
+    
+    /**
+     * POST /api/stories/:storyId/view
+     * Registrar que el usuario autenticado vio esta story
+     * Se llama cada vez que el usuario abre/ve la story
+     * Si ya la habia visto, incrementa el contador
+     */
+    registrarVista=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
+    {
+
+        try
+        {
+
+            const user=(req as any).user
+            if(!user)throw new AppError(401,'Usuario no autenticado')
+            const{storyId}=req.params
+            await this.storiesService.registrarVista(storyId,user.id)
+            const response:ApiResponse={success:true,message:'Vista registrada',timestamp:new Date().toISOString(),}
+            res.status(200).json(response)
+
+
+        }catch(e){next(e)}
+
+    }
+
+    /**
+     * GET /api/stories/:storyId/views
+     * Ver quien vio mi story (solo el autor puede ver esto)
+     * Retorna resumen de estadisticas + lista paginada de viewers
+     */
+    listarVista=async(req:Request,res:Response,next:NextFunction):Promise<void>=>
+    {
+
+        try
+        {
+
+            const user=(req as any).user
+            if(!user)throw new AppError(401,'Usuario no autenticado')
+            const{storyId}=req.params
+            const page=parseInt(req.query.page as string)||1;
+            const limit=parseInt(req.query.limit as string)||100;
+            const result=await this.storiesService.listarVistas(storyId,user.id,page,limit)
+            const response:ApiResponse={success:true,message:'Vistas obtenidas exitosamente',data:result,timestamp:new Date().toISOString(),}
+            res.status(200).json(response)
+
+        }catch(e){next(e)}
+
+    }
+    
+
 }
