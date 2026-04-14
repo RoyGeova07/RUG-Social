@@ -25,6 +25,8 @@ create table users
 
 );
 
+
+-----
 SELECT datname FROM pg_database;
 
 
@@ -295,22 +297,23 @@ create index if not exists idx_story_views_story on story_views(story_id);
 create index if not exists idx_story_views_viewer on story_views(viewer_id);
 
 
-TRUNCATE TABLE 
-chat_members,
-chats,
-comments,
-follows,
-likes,
-message_stickers,
-messages,
-messages_media,
-notifications,
-post_media,
-posts,
-profiles,
-stickers,
-stories,
-user_status,
-users
-RESTART IDENTITY CASCADE;
+--TRUNCATE TABLE 
+--chat_members,
+--chats,
+--comments,
+--follows,
+--likes,
+--message_stickers,
+--messages,
+--messages_media,
+--notifications,
+--post_media,
+--posts,
+--profiles,
+--stickers,
+--stories,
+--user_status,
+--users,
+--story_views
+--RESTART IDENTITY CASCADE;
 
